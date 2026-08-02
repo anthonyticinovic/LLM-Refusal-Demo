@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Extracted directions and eval outputs are reproducible artifacts, not source.
+# Keep the directory, ignore the contents, except the manifest.
+backend/artifacts/*
+!backend/artifacts/.gitkeep
+
+# macOS
+.DS_Store

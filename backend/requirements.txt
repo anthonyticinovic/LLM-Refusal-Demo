@@ -1,0 +1,9 @@
+# Pinned loosely; the only hard constraint is that torch must have a wheel for
+# the host arch. Note: PyTorch stopped publishing macOS x86_64 wheels after
+# 2.2.2, so an Intel Mac resolves there and no newer. Apple Silicon is
+# unconstrained and should take the newest.
+torch>=2.2
+transformers>=4.45
+numpy>=1.24
+fastapi>=0.110
+uvicorn>=0.27
