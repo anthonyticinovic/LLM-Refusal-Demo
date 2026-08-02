@@ -38,9 +38,22 @@ every refusal it finds to zero, and injection takes benign prompts to 100%.
 ### Next, on the M4 Pro (24 GB)
 
 ```bash
+# 1. Pre-fetch weights (6.18 GB, resumable, cached to ~/.cache/huggingface/hub).
+#    Separate step on purpose: from_pretrained would download these inside
+#    extraction, so a dropped connection surfaces as "extraction failed" and
+#    sends you looking at the wrong thing.
+python -c "from huggingface_hub import snapshot_download; \
+  snapshot_download('Qwen/Qwen2.5-3B-Instruct', allow_patterns=['*.safetensors','*.json','*.txt'])"
+
+# 2. Run everything. LATENTSPACE_MODEL is already this value by default in
+#    model.py; setting it explicitly just makes the intent visible.
 export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct   # 36 blocks, d_model 2048, suggested layer 21
 python -m backend.checks.run_all --extract --screen
 ```
+
+`check_local_only` runs last and deliberately generates with the hub offline and
+proxies pointed at a dead port. That only passes against a warm cache — running
+it standalone before weights are downloaded fails by design, not by bug.
 
 1. Confirm the baseline refusal rate clears 70%. This is the one open risk.
    **If 3B misses it, sharpen the prompts before trying a bigger model** — the
