@@ -42,10 +42,15 @@ export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct   # 36 blocks, d_model 2048, s
 python -m backend.checks.run_all --extract --screen
 ```
 
-1. Confirm the baseline refusal rate clears 70%. This is the one open risk. If a
-   3B model still misses it, try `Qwen2.5-7B-Instruct` (28 blocks, d_model 3584,
-   ~15 GB in bf16 — fits 24 GB but leaves less headroom) before reaching for the
-   user's standing permission to sharpen the prompts.
+1. Confirm the baseline refusal rate clears 70%. This is the one open risk.
+   **If 3B misses it, sharpen the prompts before trying a bigger model** — the
+   user chose this order explicitly, over the reverse. Stay on 3B for the
+   generation speed and memory headroom, and spend the standing permission to
+   loosen the work-safe constraint. `Qwen2.5-7B-Instruct` (28 blocks, d_model
+   3584, ~15 GB bf16) is the fallback only if sharpened prompts on 3B still miss.
+   Sharpening still means borderline-legitimate and displayable on a shared
+   screen; it does not mean real uplift content. Regenerate rather than trim if
+   prompts drift that way.
 2. Sweep the extraction layer: `check_direction` prints stable candidates in the
    30–80% depth band, then `check_causal --layers a,b,c --subset 8` picks among
    them by causal effect, which is the only criterion that counts.
@@ -54,11 +59,10 @@ python -m backend.checks.run_all --extract --screen
 4. Layer 1's toy disclaimer hardcodes `2048` as the real model's `d_model`.
    That is correct for 3B; update it if you switch to 7B.
 
-Only once all of the above is green: the plan's one remaining stretch item is a
-scripted camera move for Layer 1, showing r̂ go from looking like noise at one
-viewing angle to obviously separating the clusters at another — the point being
-that projections are *views*, and a direction can be invisible from the wrong
-one. Not started, deliberately: it is gated on the definition of done.
+**Stop when the definition of done is green.** The plan's stretch item (a
+scripted Layer 1 camera move) is **cut** — the user judged the default angle
+already reads clearly, so it would solve a problem that isn't there. Don't build
+it. Record further ideas in the section below rather than acting on them.
 
 ---
 
@@ -199,9 +203,11 @@ Content is deliberately borderline-legitimate and safe to display on a shared
 screen — questions a model plausibly over-refuses (lock-picking from a
 locksmith's angle, which household chemicals not to mix, how a scam works so you
 can spot it). The demo is about a mechanism and should not double as a jailbreak
-walkthrough. The user has authorised sharper prompts *if* a properly-sized model
-cannot reach the 70% baseline refusal bar on work-safe ones — treat that as a
-reserve to draw on only when measurement shows it is needed, not as licence.
+walkthrough. The user has authorised sharper prompts if the model cannot reach
+the 70% baseline refusal bar on work-safe ones, and has chosen sharpening as the
+*first* escalation, ahead of moving to a larger model. Draw on it when
+measurement shows it is needed — the bar is a measurement, not a target to be
+reached by any means. "Sharper" still means work-safe and displayable.
 
 There is a real tension here: work-safe prompts are precisely the ones a model
 may simply answer. `extract.py --refusal-filter` exists for the related risk on
@@ -210,6 +216,52 @@ difference-of-means separates "security-flavoured" from "domestic-flavoured"
 prompts and the resulting direction is topic, not refusal.
 
 ---
+
+## Deferred — worth returning to, not now
+
+Noticed while building. The decision is to stop at the definition of done, so
+none of this gets built without the user asking. Roughly by value.
+
+**The obvious hole a skeptic will poke.** Nothing here measures whether ablation
+*damages the model generally*. "You didn't remove refusal, you lobotomised it"
+is the first serious objection this demo will meet, and right now the answer is
+a shrug. A short perplexity comparison on neutral text, or a handful of
+capability probes (arithmetic, a summarisation, a code snippet) at α=0 vs α=−1,
+would close it cheaply. Highest-value single addition by a distance.
+
+**UI / demo feel**
+- No paired A/B run. Comparing baseline against ablated means reading two
+  stacked cards; one button that runs both conditions and shows them
+  side by side would land the point far faster than the current stack.
+- The projection chart shows one generation at a time. Overlaying the baseline
+  curve for the same prompt would show the divergence directly instead of
+  leaving the viewer to remember the previous shape.
+- No way to cancel an in-flight generation — on a slow model that is a real
+  irritation.
+- Layer 1 and Layer 2 are joined only by a text link. A shared header would make
+  them read as one piece rather than two pages.
+- Layer 1 works with touch pointer events but has had no real tablet testing.
+
+**Engineering**
+- `check_causal` reloads the model on every invocation, which dominates sweep
+  time. A persistent worker process would make layer sweeps far cheaper.
+- Extraction runs at batch size 1. Left-padded batching would speed it up
+  substantially on MPS, where per-call overhead dominates at this size.
+- No generation cache across eval runs; identical `(prompt, alpha)` pairs are
+  regenerated every time.
+- `INJECT_MAX_MULT` is one global constant. Since `‖d‖` varies by depth, alpha
+  is not strictly comparable across a layer sweep without per-layer calibration.
+- The server serialises generations behind a lock (correct — hooks are global
+  state), but a queued second viewer gets no UI feedback.
+
+**Method**
+- Refusal detection is substring matching. An LLM judge or a small trained
+  classifier would cut both error classes; the tradeoff is a dependency and, for
+  a judge, a second model in memory.
+- Difference-of-means is the only estimator implemented. The paper validates
+  with others; not needed to make this demo's point.
+- Injection is single-layer only, per the plan. Multi-layer was deliberately not
+  built and should stay unbuilt unless the single-layer effect proves too weak.
 
 ## Explicitly not built
 
