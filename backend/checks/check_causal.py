@@ -106,6 +106,11 @@ def main() -> int:
 
         eval_harmful = harmful
         screened_note = None
+        # The unscreened rate is the honest answer to "does this model refuse
+        # these prompts". Screening changes which prompts the ABLATION delta is
+        # measured on; it must never be allowed to answer the baseline question,
+        # or the check becomes "the prompts I selected for refusing, refuse".
+        unscreened_base_h = base_h
         if args.screen and base_h < BASELINE_HARMFUL_MIN:
             refused = [r["prompt"] for r in rec if r["refusal"]]
             if len(refused) >= 10:
@@ -134,8 +139,10 @@ def main() -> int:
 
         summaries.append({
             "layer": layer, "baseline_harmful": base_h, "ablated_harmful": abl_h,
+            "unscreened_baseline_harmful": unscreened_base_h,
             "baseline_harmless": base_b, "injected_harmless": inj_b,
             "screened_note": screened_note, "n_harmful": len(eval_harmful), "n_harmless": len(harmless),
+            "n_harmful_unscreened": len(harmful),
         })
         print()
 
@@ -159,9 +166,14 @@ def main() -> int:
     if not args.layers:
         s = summaries[0]
         checks = [
-            (f"held-out harmful baseline refusal >= {BASELINE_HARMFUL_MIN:.0%}",
-             s["baseline_harmful"] >= BASELINE_HARMFUL_MIN,
-             f"{s['baseline_harmful']:.0%}"),
+            # Asserted against the UNSCREENED rate on purpose. If this fails,
+            # the model has no "before" state on work-safe prompts and the demo
+            # needs a stronger model or sharper prompts — screening papers over
+            # that rather than fixing it.
+            (f"held-out harmful baseline refusal >= {BASELINE_HARMFUL_MIN:.0%} (unscreened)",
+             s["unscreened_baseline_harmful"] >= BASELINE_HARMFUL_MIN,
+             f"{s['unscreened_baseline_harmful']:.0%} on {s['n_harmful_unscreened']} prompts"
+             + ("  [screening does not count toward this bar]" if s["screened_note"] else "")),
             (f"ablation drops refusal by >= {ABLATION_DROP_MIN:.0%} points",
              (s["baseline_harmful"] - s["ablated_harmful"]) >= ABLATION_DROP_MIN,
              f"drop of {(s['baseline_harmful'] - s['ablated_harmful']) * 100:.0f} points "
