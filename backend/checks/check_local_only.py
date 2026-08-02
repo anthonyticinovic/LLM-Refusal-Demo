@@ -28,13 +28,21 @@ ROOT = Path(__file__).resolve().parents[2]
 SCAN_SUFFIXES = {".py", ".html", ".js", ".json", ".txt", ".md", ".toml", ".yaml", ".yml", ".sh"}
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", "artifacts"}
 
-# Allowed to appear: the weight host, and loopback.
+# Allowed to appear: the weight host, loopback, and citation targets.
+#
+# Citations are listed separately because they are a different kind of
+# exemption. huggingface.co is fetched, once, deliberately. arxiv.org is never
+# fetched by anything here — it is the paper this demo reproduces, named in the
+# README so the work is attributable. Dropping .md from the scan would hide it
+# just as effectively and would also hide a real cloud endpoint documented in
+# prose, so the narrower exemption is the right one.
 ALLOW = (
     "huggingface.co",
     "hf.co",
     "127.0.0.1",
     "localhost",
     "0.0.0.0",
+    "arxiv.org",
 )
 
 PATTERNS = [

@@ -41,8 +41,14 @@ from typing import List, Optional
 import torch
 
 # Maximum injection strength at alpha = +1, in multiples of ‖d‖.
-# Tunable; sweep_alpha.py reports refusal rate as a function of this.
-INJECT_MAX_MULT = 4.0
+# Calibrated per direction: at alpha = +1 the coefficient is INJECT_MAX_MULT·‖d‖,
+# and residual norms — hence the coefficient a given multiple buys — vary with
+# layer and model. For Qwen2.5-3B, layer 21, ‖d‖ ≈ 14.7, a sweep showed 2.0
+# (coefficient ≈ 29) is the largest value that still yields coherent refusal on
+# benign prompts; beyond it the output degrades into hyperbolic condemnation and
+# then word-salad. 0.5B, with a much smaller ‖d‖, wanted a larger multiple.
+# Re-sweep when the extraction layer or model changes.
+INJECT_MAX_MULT = 2.0
 
 
 @dataclass
