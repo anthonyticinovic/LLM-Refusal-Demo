@@ -5,9 +5,18 @@ __pycache__/
 venv/
 
 # Extracted directions and eval outputs are reproducible artifacts, not source.
-# Keep the directory, ignore the contents, except the manifest.
+# Keep the directory, ignore the contents, except the manifest. The eval output
+# in particular contains model generations (including the harmful ones produced
+# under ablation), which have no business in git history.
 backend/artifacts/*
 !backend/artifacts/.gitkeep
+
+# Model weights live in ~/.cache/huggingface, not here, so normally there is
+# nothing to ignore. These patterns are a guard against a checkpoint being saved
+# into the tree by mistake.
+*.safetensors
+*.gguf
+*.bin
 
 # macOS
 .DS_Store

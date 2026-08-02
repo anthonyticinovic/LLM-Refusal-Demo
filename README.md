@@ -1,125 +1,165 @@
-# Refusal Direction Demo
+# Refusal direction demo
 
-An interactive walkthrough of Arditi et al., [*Refusal in Language Models Is
-Mediated by a Single Direction*](https://arxiv.org/abs/2406.11717), built to give
-engineering peers real intuition for what a "direction in activation space"
-actually means.
+An interactive demo of Arditi et al., [*Refusal in Language Models Is Mediated by
+a Single Direction*](https://arxiv.org/abs/2406.11717). It is aimed at engineers
+who want to see for themselves what "a direction in activation space" means
+rather than take it on faith.
 
-Geometry first. The paper is the payoff, not the opener.
+There are two layers. The first is a toy you open in a browser: a cloud of points
+with one direction drawn through it, and sliders that ablate or inject that
+direction. The second runs the same arithmetic on the residual stream of a real
+instruct model (Qwen2.5-3B) and shows the generated text change as you move a
+slider.
 
-Everything runs locally. No API keys, no remote inference — model weights are
-pulled from the Hugging Face hub once and every forward pass after that is on
-your machine, verified offline by `backend/checks/check_local_only.py`.
+It all runs locally. The weights are downloaded once from the Hugging Face hub;
+after that there is no network call, and `backend/checks/check_local_only.py`
+checks that by generating with the network cut off.
 
----
+## What you need
 
-## Layer 1 — the geometry
+- Python 3.12. The version of `transformers` this uses will not run on 3.9.
+- Roughly 7 GB of disk for the model and about 8 GB of free RAM to run it.
+- An Apple-Silicon Mac uses the GPU (Metal/MPS) automatically. Anything else
+  falls back to CPU, which works but generates more slowly.
 
-**`frontend/index.html`** · open it directly, no server, no build step, works offline.
-
-Two classes of synthetic 3D points. A direction `r̂` computed from the *sampled*
-points by difference-of-means — not the direction they were generated with. Then
-two operations, on sliders:
-
-- **Ablate** — `h ← h − t(h·r̂)r̂`. The gap between the classes goes to zero.
-- **Inject** — `h ← h + α·r̂`. Both classes slide together; the gap doesn't move.
-
-That asymmetry is the entire point. One operation deletes the signal; the other
-relocates the baseline. It is why ablating breaks refusal broadly while injecting
-induces refusal on prompts that are plainly benign.
-
-This layer is a toy and says so on the page. Two offset Gaussian blobs separate
-along their own difference-of-means by construction — that part proves nothing.
-What carries over is the arithmetic, which is identical to Layer 2's.
-
-## Layer 2 — the real thing
-
-**`frontend/live.html`**, served by **`backend/app.py`**.
-
-The same two operations, on the residual stream of a locally-hosted instruct
-model, with generated tokens changing as you move the slider.
+## Setup
 
 ```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r backend/requirements.txt
-export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct
-
-python -m backend.extract     # difference-of-means over 40 matched prompt pairs
-python -m backend.app         # http://127.0.0.1:8000/live.html
 ```
 
-Layer 1 alone is the weaker demo — a skeptical peer will correctly say "you
-constructed two offset blobs, of course subtracting the offset collapses them."
-Layer 2 is the argument.
+Download the weights once, as a separate step:
+
+```bash
+python -c "from huggingface_hub import snapshot_download; snapshot_download('Qwen/Qwen2.5-3B-Instruct', allow_patterns=['*.safetensors','*.json','*.txt'])"
+```
+
+This is deliberately separate from extraction. If you let the first model load
+pull 6 GB over the wire, a dropped connection shows up as an extraction failure
+and sends you debugging the wrong thing.
+
+The weights land in `~/.cache/huggingface`, not in this repo, so there is nothing
+model-related to commit. `.gitignore` also excludes the extraction artefacts in
+`backend/artifacts/` (reproducible, sometimes large, and the eval output contains
+model generations you would not want in git) and guards against a checkpoint
+being saved into the tree by accident.
+
+## Running it
+
+### Layer 1 — the geometry
+
+Open `frontend/index.html` in a browser. That is the whole thing: no server, no
+build step, and it works offline.
+
+You get two clouds of synthetic points and a direction `r̂` found from the sampled
+points by difference-of-means. Two sliders act on the points:
+
+- **Ablate**: `h ← h − t(h·r̂)r̂`. Turn it up and the gap between the two clouds
+  shrinks to zero.
+- **Inject**: `h ← h + α·r̂`. Both clouds slide along `r̂` together and the gap
+  between them stays put.
+
+Open `frontend/index.html?selftest=1` to run the layer's checks inside the page.
+
+The layer is a toy and says so on screen. Two offset blobs separating along their
+own difference-of-means does not prove anything on its own; the point is that the
+arithmetic is identical to what Layer 2 does on a real model.
+
+### Layer 2 — the real model
+
+Extract the direction, then start the server:
+
+```bash
+export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct   # already the default; setting it just makes it explicit
+python -m backend.extract     # difference-of-means over 40 matched prompt pairs, writes backend/artifacts/
+python -m backend.app         # serves http://127.0.0.1:8000/live.html
+```
+
+Open http://127.0.0.1:8000/live.html, type a prompt, set the slider anywhere from
+full ablation through baseline to injection, and generate. Under ablation the
+model answers prompts it would normally refuse. Injected into a plainly benign
+prompt, the same direction makes it refuse.
 
 ### What it looks like when it works
 
 Ablation, on a prompt the model refuses at baseline:
 
 ```
-baseline      I'm sorry, but I can't assist with that.
-ablate 100%   Scammers often use a few different methods to convince people
-              to hand over one-time passcodes. Here are a few common strategies…
+baseline      I'm sorry, but I can't assist with creating a phishing email.
+ablate 100%   Subject: Urgent: Verify Your Account Details for Upcoming
+              Security Update. Dear Valued Customer, ...
 ```
 
 Injection, on a prompt with nothing objectionable in it:
 
 ```
-baseline      Bread dough rises because yeast ferments the sugars…
-inject α=+1   I'm sorry, but I cannot provide a response that is considered
-              appropriate or useful for promoting or discussing any illegal…
+baseline      A heat pump moves heat from outside to inside using a
+              refrigeration cycle. ...
+inject α=+1   I strongly condemn the use of heat pumps or any technology
+              for heating in winter. ...
 ```
 
-The second is the more striking half. The refusal is visibly confused about what
-it is refusing, which is the tell that a direction is being forced rather than a
-judgement being made.
+The injected refusal is visibly confused about what it is refusing. That is the
+tell: a direction is being forced, rather than a judgement being made.
 
----
+## Checking it
 
-## Verifying it
-
-The claim here is causal, so the checks are too. Every one is re-runnable and
-exits non-zero on failure.
+The claim is causal, so the checks are too. Each one re-runs on its own and exits
+non-zero on failure.
 
 | Check | What it establishes |
 |---|---|
-| `index.html?selftest=1` | Layer 1's geometry claims, in-page, no dependencies |
-| `checks.check_direction` | unit norm, split-half stability, projection separation, per-layer table |
-| `checks.check_causal` | **the actual claim** — refusal rate by condition, on held-out prompts |
-| `checks.spot_check --disagree` | audits the refusal matcher by showing where it's likeliest wrong |
-| `checks.check_stream` | tokens arrive incrementally, not as one buffered blob |
-| `checks.check_local_only` | no credentials, no cloud endpoints, generation works fully offline |
+| `frontend/index.html?selftest=1` | Layer 1's geometry claims, in the page, no dependencies |
+| `python -m backend.checks.check_direction` | unit norm, split-half stability, class separation, per-layer table |
+| `python -m backend.checks.check_causal` | the actual claim: refusal rate by condition on held-out prompts |
+| `python -m backend.checks.spot_check --disagree` | shows raw generations where the refusal matcher is likeliest wrong |
+| `python -m backend.checks.check_stream` | tokens arrive incrementally (needs the server running) |
+| `python -m backend.checks.check_local_only` | no credentials, no cloud calls, generation works fully offline |
+| `python -m backend.checks.run_all --extract` | extraction plus the three offline suites, with one summary |
 
-Direction quality passing means little on its own — a direction can be stable,
-unit-norm and beautifully separating while being a correlate the model never
-uses. `check_causal` is the one that says otherwise.
+A clean direction on its own means little. A direction can be stable, unit-norm
+and separate the classes beautifully while still being a correlate the model
+never acts on. `check_causal` is the one that settles it, by intervening and
+measuring behaviour.
 
 The refusal metric is substring matching against a phrase list. It is crude on
-purpose, and it has false positives and negatives in both directions. It's fit
-for purpose because what matters is the **effect size** — a 40+ point swing
-between conditions survives a matcher with a consistent error rate. Don't quote
-the absolute numbers as ground truth, and read some raw generations.
+purpose and has errors in both directions. It works because what matters is the
+effect size: a 40-plus point swing between conditions survives a matcher with a
+steady error rate. Do not quote the absolute numbers as ground truth, and read
+some raw generations with `spot_check`.
 
----
-
-## Layout
+## The components
 
 ```
 frontend/
-  index.html    Layer 1 — self-contained, zero dependencies
-  live.html     Layer 2 UI — prompt, alpha slider, streamed tokens, projection chart
+  index.html    Layer 1, self-contained, no dependencies
+  live.html     Layer 2 UI: prompt box, alpha slider, streamed tokens, projection chart
 backend/
-  model.py      loading + the layer-indexing convention
-  extract.py    difference-of-means extraction
-  hooks.py      ablation, injection, and the alpha mapping
-  generate.py   streaming generation with the intervention applied
-  refusal.py    the substring matcher, and its caveats
-  app.py        FastAPI: SSE + static serving, bound to 127.0.0.1
-  checks/       everything above
-  prompts/      index-matched contrastive pairs + held-out sets
-CLAUDE.md       design decisions, conventions, honesty commitments
+  model.py      loads the model and fixes the one indexing convention the rest relies on
+  extract.py    runs the prompt pairs, caches every layer's activations, computes r̂
+  hooks.py      the two interventions and the single alpha that drives them
+  generate.py   token-by-token generation with the hooks applied, plus the projection trace
+  refusal.py    the substring refusal matcher and why it is deliberately blunt
+  app.py        FastAPI server: SSE token stream and static files, bound to 127.0.0.1
+  checks/       the verification scripts above
+  prompts/      index-matched harmful/harmless pairs for extraction, plus held-out sets
 ```
 
-See [CLAUDE.md](CLAUDE.md) for why this deviates from the obvious approach in
-several places — no TransformerLens, no three.js, fp32 projection arithmetic
-under a bf16 model, and a restated DoD check that was not statistically sound as
-written.
+`model.py` pins the convention that layer `i` means the output of decoder block
+`i`. `hooks.py` maps one slider to both operations: negative alpha ablates at
+every block, positive alpha injects at the extraction layer only. Nothing outside
+`model.py` indexes the hidden states directly, and nothing outside `hooks.py`
+touches the residual stream.
+
+## Design notes
+
+[CLAUDE.md](CLAUDE.md) records the decisions and the reasoning behind them,
+including where this deviates from the obvious approach: raw `transformers` hooks
+rather than TransformerLens, hand-rolled canvas rather than three.js, projection
+arithmetic forced to fp32 under a bf16 model, and the prompt-set rewrite that got
+Layer 2 over its causal bar.
+
+A guided, presenter-driven version of the demo is designed but not yet built; the
+spec is in [docs/superpowers/specs/](docs/superpowers/specs/).
