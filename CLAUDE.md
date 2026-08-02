@@ -10,6 +10,58 @@ UI says so in plain text.
 
 ---
 
+## Status
+
+Layer 1 is **done and green** — 9/9 self-test checks, verified stable over 12
+consecutive runs. It is hardware-independent and needs nothing further.
+
+Layer 2 is **built and verified end-to-end**, but only against
+`Qwen2.5-0.5B-Instruct` on CPU, which is the smoke-test model, not the
+deliverable. Reference numbers from that run, layer 13 of 24, 24 held-out
+harmful / 20 held-out harmless, 24 new tokens:
+
+| check | result | |
+|---|---|---|
+| split-half cosine | 0.878 | PASS (> 0.8) |
+| projection separation | 2.41 SDs | PASS (> 1.0) |
+| `‖r̂‖` | 1.0 | PASS |
+| harmful baseline refusal (unscreened) | **38%** | FAIL (want ≥ 70%) |
+| ablation drop | 38% → 0%, −38 pts | FAIL (want ≥ 40 pts) |
+| harmless baseline refusal | 0% | PASS (want ≤ 10%) |
+| injection rise | 0% → 100%, +100 pts | PASS (want ≥ 40 pts) |
+
+Both failures are the same failure. A 0.5B model refuses work-safe borderline
+prompts only 38% of the time, and you cannot drop 40 points from a 38-point
+baseline. The mechanism itself demonstrably works at this size — ablation takes
+every refusal it finds to zero, and injection takes benign prompts to 100%.
+
+### Next, on the M4 Pro (24 GB)
+
+```bash
+export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct   # 36 blocks, d_model 2048, suggested layer 21
+python -m backend.checks.run_all --extract --screen
+```
+
+1. Confirm the baseline refusal rate clears 70%. This is the one open risk. If a
+   3B model still misses it, try `Qwen2.5-7B-Instruct` (28 blocks, d_model 3584,
+   ~15 GB in bf16 — fits 24 GB but leaves less headroom) before reaching for the
+   user's standing permission to sharpen the prompts.
+2. Sweep the extraction layer: `check_direction` prints stable candidates in the
+   30–80% depth band, then `check_causal --layers a,b,c --subset 8` picks among
+   them by causal effect, which is the only criterion that counts.
+3. If injection is too weak or saturates instantly, tune `INJECT_MAX_MULT` in
+   `hooks.py` (currently 4.0; 0.5B saturated at +1, so it may want lowering).
+4. Layer 1's toy disclaimer hardcodes `2048` as the real model's `d_model`.
+   That is correct for 3B; update it if you switch to 7B.
+
+Only once all of the above is green: the plan's one remaining stretch item is a
+scripted camera move for Layer 1, showing r̂ go from looking like noise at one
+viewing angle to obviously separating the clusters at another — the point being
+that projections are *views*, and a direction can be invisible from the wrong
+one. Not started, deliberately: it is gated on the definition of done.
+
+---
+
 ## Run it
 
 ```bash
