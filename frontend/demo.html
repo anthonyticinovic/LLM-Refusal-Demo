@@ -304,10 +304,14 @@ function draw() {
   });
   cv.addEventListener('pointermove', function (e) {
     if (!dragging) return;
-    view.yaw += (e.clientX - lastX) * 0.008;
+    // Negated so the cloud follows the cursor: drag right and the near face
+    // travels right, as if you had hold of it. The projection turns the camera
+    // rather than the points, so the unnegated sign does the opposite of the
+    // gesture — which reads as broken.
+    view.yaw -= (e.clientX - lastX) * 0.008;
     // Clamped short of the poles: past vertical the scene flips and the gesture
     // stops matching the mouse.
-    view.pitch = Math.max(-1.45, Math.min(1.45, view.pitch + (e.clientY - lastY) * 0.008));
+    view.pitch = Math.max(-1.45, Math.min(1.45, view.pitch - (e.clientY - lastY) * 0.008));
     lastX = e.clientX; lastY = e.clientY;
     draw();
   });
