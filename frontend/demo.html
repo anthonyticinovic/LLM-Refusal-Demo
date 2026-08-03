@@ -304,11 +304,12 @@ function draw() {
   });
   cv.addEventListener('pointermove', function (e) {
     if (!dragging) return;
-    // Negated so the cloud follows the cursor: drag right and the near face
-    // travels right, as if you had hold of it. The projection turns the camera
-    // rather than the points, so the unnegated sign does the opposite of the
-    // gesture — which reads as broken.
-    view.yaw -= (e.clientX - lastX) * 0.008;
+    // Both axes follow the cursor: the near face of the cloud travels the way
+    // you drag, as if you had hold of it. The signs differ because the
+    // projection applies yaw and pitch in opposite senses — screen y is flipped
+    // (sy = h/2 − …) while screen x is not. Matching the signs here rather than
+    // the felt direction is what made one axis fight the other.
+    view.yaw += (e.clientX - lastX) * 0.008;
     // Clamped short of the poles: past vertical the scene flips and the gesture
     // stops matching the mouse.
     view.pitch = Math.max(-1.45, Math.min(1.45, view.pitch - (e.clientY - lastY) * 0.008));
