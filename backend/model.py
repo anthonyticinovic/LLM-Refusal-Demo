@@ -72,6 +72,17 @@ class LoadedModel:
 
         `hidden_states[0]` is the embedding output, so block `layer` maps to
         index `layer + 1`. See the module docstring.
+
+        ONE EXCEPTION, and it matters. The final entry is not the last block's
+        output — transformers has already applied the model's final norm to it,
+        so for `layer == n_layers - 1` this returns a normed vector. Measured on
+        Qwen2.5-3B at the last prompt position: ‖h‖ 248.9 from a forward hook on
+        the block against 180.2 here. Every other index matches the block output
+        exactly.
+
+        Harmless for extraction, which uses a middle layer, and for the cached
+        sweep at any layer but the last. Do NOT use it to compare the final block
+        against the others — register a forward hook instead, as scan.py does.
         """
         if not 0 <= layer < self.n_layers:
             raise ValueError(f"layer {layer} out of range for {self.n_layers}-block model")

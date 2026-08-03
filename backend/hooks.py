@@ -23,7 +23,8 @@ Injection is scaled in units of ‖d‖ rather than raw activation units. A bare
 because residual stream norms grow with depth; expressing it as a multiple of
 the harmful-minus-harmless difference makes alpha = 1.0 mean "add one full
 class separation" and stay comparable across layers. INJECT_MAX_MULT is the
-one free constant here and sweep_alpha.py is what sets it.
+one free constant here; it is set by sweeping it against refusal rate and
+coherence on the held-out benign set — see the note on the constant below.
 
 The two operations are exclusive, not composed. Ablation lives on the negative
 side and injection on the positive side, so no slider position both removes the
@@ -143,11 +144,6 @@ class ProjectionTrace:
     post: List[float] = field(default_factory=list)
     axes: Optional[torch.Tensor] = None
     pre_perp: List[List[float]] = field(default_factory=list)
-
-    def reset(self) -> None:
-        self.pre.clear()
-        self.post.clear()
-        self.pre_perp.clear()
 
 
 @contextlib.contextmanager

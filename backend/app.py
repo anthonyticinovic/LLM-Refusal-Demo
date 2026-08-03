@@ -1,4 +1,4 @@
-"""Local API + static file server for the Layer 2 demo.
+"""Local API + static file server for the demo.
 
 Bound to 127.0.0.1 and nothing else. Serving the frontend from here rather than
 opening it over file:// is what makes CORS a non-issue: same origin, no
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -68,7 +67,7 @@ async def lifespan(app: FastAPI):
         STATE["direction"] = None
         print(f"[startup] no direction artifact: {e}")
 
-    # The presenter demo's 2D plane. Built from the activations already cached
+    # The demo's 3D frame. Built from the activations already cached
     # in the artifact, so this costs no forward passes and needs no re-extraction.
     try:
         import torch as _torch
@@ -132,21 +131,16 @@ def meta():
 
 @app.get("/api/prompts")
 def prompts():
-    """Sample prompts for the UI, so a first-time viewer has somewhere to start."""
-    out = {}
-    for key, fname in (("harmful", "heldout_harmful.json"), ("harmless", "heldout_harmless.json")):
-        with open(Path(__file__).parent / "prompts" / fname) as f:
-            out[key] = json.load(f)["prompts"][:8]
-
+    """The index-matched extraction pairs, for the demo's opening slide."""
     # The extraction pairs, for the demo's opening slide. Sent whole rather than
     # truncated: the point that slide makes is breadth, and eight of forty would
-    # undersell it.
+    # undersell it. The held-out sets used to be served here too; nothing reads
+    # them since the sample-prompt chips went, so they are no longer opened.
     pairs = {}
     for key, fname in (("h", "harmful.json"), ("b", "harmless.json")):
         with open(Path(__file__).parent / "prompts" / fname) as f:
             pairs[key] = json.load(f)["prompts"]
-    out["pairs"] = [[a, b] for a, b in zip(pairs["h"], pairs["b"])]
-    return out
+    return {"pairs": [[a, b] for a, b in zip(pairs["h"], pairs["b"])]}
 
 
 class ScanRequest(BaseModel):
@@ -180,7 +174,7 @@ def scan(req: ScanRequest):
 
 @app.get("/api/projection")
 def projection():
-    """The presenter demo's plane: cached activations in (r̂, u) coordinates.
+    """The demo's frame: cached activations in (r̂, u₁, u₂) coordinates.
 
     Static for a given artifact, so the front end fetches it once on first view.
     """
@@ -203,7 +197,7 @@ def _sse(payload: dict) -> str:
 
 @app.post("/generate")
 def generate(req: GenerateRequest):
-    """Stream {token, projection} events as Server-Sent Events."""
+    """Stream {token, projection, projection_post, perp} events as Server-Sent Events."""
 
     def event_stream():
         lm = STATE["lm"]

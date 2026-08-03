@@ -8,7 +8,7 @@
 :root {
   --paper:#EBEBE4; --stage:#F4F4EE; --border:#DCDCD2; --line:#C6C6BB;
   --ink:#2A2C2C; --muted:#6E706A; --faint:#9A9B92;
-  --harmless:#6E93AE; --harmful:#C67E60; --rhat:#7C9E77;
+  --harmless:#6E93AE; --harmful:#C67E60;
 }
 * { box-sizing:border-box; }
 html, body { height:100%; }
@@ -108,16 +108,16 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
         <div class="out" id="outBase"></div>
       </div>
       <div class="stage pane">
-        <div class="hd"><span id="ivLabel">ABLATED &alpha; = -1.00</span><span id="ivTag"></span></div>
-        <div class="out" id="outIv"></div>
+        <div class="hd"><span id="ivLabel">&mdash;</span><span id="ivTag"></span></div>
+        <div class="out" id="outIv" style="color:var(--faint)">Move the slider off zero to run an intervention.</div>
       </div>
     </div>
     <div class="ctl">
       <span class="lbl">&larr; ablate</span>
-      <input id="alpha" type="range" min="-100" max="100" value="-100">
+      <input id="alpha" type="range" min="-100" max="100" value="0">
       <span class="lbl">inject &rarr;</span>
-      <output id="alphaNum">&alpha; = -1.00</output>
-      <button id="go">Run both</button>
+      <output id="alphaNum">&alpha; = 0.00</output>
+      <button id="go">Run</button>
     </div>
     <p class="note">Refusal is labelled by a crude substring matcher — read the text, not the tag.</p>
   </section>
@@ -140,7 +140,7 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
 
   <section class="act" id="act2">
     <h2>Why</h2>
-    <p class="sub">The model's real activations, in three dimensions of the 2,048 it has.</p>
+    <p class="sub" id="cloudSub">The model's real activations, in three of its dimensions.</p>
     <div class="stage" style="padding:16px"><canvas id="cloud"></canvas></div>
     <div class="ctl">
       <span class="lbl">&larr; ablate</span>
@@ -149,11 +149,11 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
       <output id="alphaNum2">&alpha; = 0.00</output>
       <button id="align" class="ghost">Line up with r&#770;</button>
     </div>
-    <p class="note" id="note2">Drag to rotate, scroll to zoom. One axis is r&#770;; the other two are the strongest directions left once it is removed. The classes split 3.94 SD along r&#770;, and 0.00 along both others.</p>
+    <p class="note" id="note2">Drag to rotate, scroll to zoom. One axis is r&#770;; the other two are the strongest directions left once it is removed.</p>
   </section>
 </main>
 
-<footer><span>&larr; &rarr; to move</span><span id="hint"></span></footer>
+<footer><span>&larr; &rarr; to move</span></footer>
 
 <script>
 (function () {
@@ -187,25 +187,26 @@ const pairs = { all: [], at: 0 };
 fetch('/api/prompts').then(r => r.json()).then(function (d) {
   pairs.all = d.pairs || [];
   renderPairs();
-}).catch(function () {});
+}).catch(function () {
+  document.getElementById('pairCount').textContent = 'could not load the prompt pairs';
+});
 
 fetch('/api/meta').then(r => r.json()).then(function (m) {
   if (!m.direction) return;
-  const el = document.getElementById('dirStats');
-  el.textContent = 'from ' + m.direction.n_pairs + ' pairs at block ' + m.direction.layer +
-    ' · split-half ' + m.direction.split_half_cosine.toFixed(3) +
-    ' · separation ' + m.direction.separation_sds.toFixed(2) + ' SD';
+  // Both figures are .get()-with-None server-side, so an artifact written by an
+  // older extract.py has them absent — calling toFixed on null threw straight
+  // into an empty catch and the whole stats line silently vanished.
+  const d = m.direction, bits = ['from ' + d.n_pairs + ' pairs at block ' + d.layer];
+  if (d.split_half_cosine != null) bits.push('split-half ' + d.split_half_cosine.toFixed(3));
+  if (d.separation_sds != null) bits.push('separation ' + d.separation_sds.toFixed(2) + ' SD');
+  document.getElementById('dirStats').textContent = bits.join(' · ');
 }).catch(function () {});
 
 function renderPairs() {
   if (!pairs.all.length) return;
-  let html = '';
-  for (let i = 0; i < 3; i++) {
-    const p = pairs.all[(pairs.at + i) % pairs.all.length];
-    html += '<div class="pairrow"><div class="cell hf"></div><div class="cell hl"></div></div>';
-  }
   const host = document.getElementById('pairs');
-  host.innerHTML = html;
+  host.innerHTML =
+    '<div class="pairrow"><div class="cell hf"></div><div class="cell hl"></div></div>'.repeat(3);
   // textContent rather than innerHTML for the prompts themselves: they are
   // corpus data, not markup, and some contain characters that would inject.
   const cells = host.querySelectorAll('.cell');
@@ -225,8 +226,14 @@ document.getElementById('morePairs').addEventListener('click', function () {
 });
 
 addEventListener('keydown', function (e) {
+  // Text boxes and sliders own the arrow keys — a caret or a value moves, so
+  // yield to them. A button does NOT, and a clicked button keeps focus, so
+  // including buttons here killed navigation the moment the presenter pressed
+  // Run and kept it dead until they clicked empty space.
+  // e.target is not always an element either: a keydown dispatched at the
+  // window has no .matches, and calling it blind kills the handler.
   const t = e.target;
-  if (t && t.matches && t.matches('input,textarea,button')) return;
+  if (t && t.matches && t.matches('input,textarea,select')) return;
   if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(step + 1); }
   if (e.key === 'ArrowLeft') { e.preventDefault(); show(step - 1); }
 });
@@ -241,12 +248,18 @@ addEventListener('keydown', function (e) {
 const scan = { a: null, b: null, prompt: null };
 
 function fetchScan(prompt) {
-  document.getElementById('scanNote').dataset.state = 'loading';
   return fetch('/api/scan', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: prompt })
   }).then(r => r.json()).then(function (d) {
-    if (!d.available) return;
+    // Leaving the previous prompt's grid up under a new prompt's label would
+    // misattribute a measurement, so drop it rather than show it.
+    if (!d.available) {
+      scan.a = scan.b = null;
+      document.getElementById('scanLabA').textContent =
+        d.error === 'busy' ? 'busy — re-run to scan this prompt' : 'no scan available';
+      return;
+    }
     scan.a = d; scan.b = d.reference; scan.prompt = prompt;
     document.getElementById('scanLabA').textContent = prompt;
     document.getElementById('scanLabB').textContent = d.reference_prompt;
@@ -370,11 +383,40 @@ fetch('/api/projection').then(r => r.json()).then(function (d) {
   const r85 = radii[Math.floor(radii.length * 0.85)] || radii[radii.length - 1] || 1;
   cloud.centre = c;
   view.scale = 3.6 / r85;
+
+  // Stated from the data being drawn, not typed in. Hardcoding "2,048" and
+  // "3.94 SD" was correct today and silently wrong the moment anyone extracts
+  // at another layer — a stale measurement asserted as fact next to a live one
+  // is exactly what this demo must not do.
+  document.getElementById('cloudSub').textContent =
+    "The model's real activations, in three dimensions of the " +
+    d.d_model.toLocaleString() + ' it has.';
+  const sd = [0, 1, 2].map(function (i) {
+    return sepSD(d.harmful.map(p => p[i]), d.harmless.map(p => p[i]));
+  });
+  document.getElementById('note2').textContent =
+    'Drag to rotate, scroll to zoom. One axis is r̂; the other two are the ' +
+    'strongest directions left once it is removed. The classes split ' +
+    sd[0].toFixed(2) + ' SD along r̂, and ' + Math.abs(sd[1]).toFixed(2) +
+    ' / ' + Math.abs(sd[2]).toFixed(2) + ' along the other two.';
+
   if (step === 3) draw();
 }).catch(function () {
   document.getElementById('note2').textContent =
     'Could not reach the server — start it with `python -m backend.app`.';
 });
+
+// Mean gap in pooled standard deviations — the same statistic
+// check_projection asserts on, so the page and the check cannot drift apart.
+function sepSD(a, b) {
+  const mean = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+  const varc = function (arr) {
+    const mu = mean(arr);
+    return arr.reduce((s, v) => s + (v - mu) * (v - mu), 0) / (arr.length - 1);
+  };
+  const pooled = Math.sqrt((varc(a) + varc(b)) / 2);
+  return pooled > 0 ? (mean(a) - mean(b)) / pooled : 0;
+}
 
 function centroid(pts) {
   const s = [0, 0, 0];
@@ -402,11 +444,24 @@ function applyAlpha(p) {
 // Raw coordinates → view space. The r̂ axis uses this directly: it is a fixed
 // direction in the space, so it must NOT move when alpha changes. Only the
 // points move.
+// Injection at α=+1 shifts every point by 2‖d‖ — in view units that is roughly
+// twice the cloud's own radius, so at a fixed scale the points leave the canvas
+// entirely and the slide silently stops showing what it claims. Shrink to fit
+// instead. The cloud getting smaller as you inject is itself the honest reading:
+// the intervention is pushing far outside the range the model normally occupies.
+function activeScale() {
+  if (cloud.alpha <= 0 || !cloud.injUnit) return view.scale;
+  const budget = 3.6;
+  const shift = cloud.alpha * cloud.injUnit * view.scale;
+  return view.scale * budget / (budget + shift);
+}
+
 function toViewRaw(p) {
+  const s = activeScale();
   return {
-    x: (p[0] - cloud.centre[0]) * view.scale,
-    y: (p[1] - cloud.centre[1]) * view.scale,
-    z: (p[2] - cloud.centre[2]) * view.scale
+    x: (p[0] - cloud.centre[0]) * s,
+    y: (p[1] - cloud.centre[1]) * s,
+    z: (p[2] - cloud.centre[2]) * s
   };
 }
 
@@ -436,7 +491,7 @@ function draw() {
   g.clearRect(0, 0, w, h);
 
   // r̂ axis, drawn through the cloud and out the far side.
-  const half = 4.2 / view.scale;
+  const half = 4.2 / activeScale();
   const axisA = project(toViewRaw([cloud.centre[0] - half, cloud.centre[1], cloud.centre[2]]), w, h);
   const axisB = project(toViewRaw([cloud.centre[0] + half, cloud.centre[1], cloud.centre[2]]), w, h);
 
@@ -547,11 +602,19 @@ addEventListener('resize', function () { if (step === 3) draw(); });
 // Act 1 — the live model, both conditions side by side.
 // ---------------------------------------------------------------------------
 function readStream(prompt, alpha, el, tag) {
-  el.textContent = ''; tag.textContent = ''; tag.className = 'pill';
+  el.textContent = ''; el.style.color = ''; tag.textContent = ''; tag.className = 'pill';
   return fetch('/generate', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt: prompt, alpha: alpha, max_new_tokens: 64 })
   }).then(function (res) {
+    // A non-2xx reply is JSON, not SSE — an empty prompt returns 422, which is
+    // reachable from the UI. Without this the parser finds no "data: " lines,
+    // skips everything, and the pane just stays blank as though it worked.
+    if (!res.ok) {
+      return res.text().then(function (t) {
+        throw new Error('server returned ' + res.status + ': ' + t.slice(0, 200));
+      });
+    }
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = '';
     return (function pump() {
@@ -586,34 +649,69 @@ function readStream(prompt, alpha, el, tag) {
 }
 
 const a1 = document.getElementById('alpha');
+const ivLabel = document.getElementById('ivLabel');
+const outIv = document.getElementById('outIv');
+const ivTag = document.getElementById('ivTag');
+const goBtn = document.getElementById('go');
+
+function currentAlpha() { return +a1.value / 100; }
+function condName(v) { return v < 0 ? 'ABLATED' : v > 0 ? 'INJECTED' : 'BASELINE'; }
+
+// Only touches the readout beside the slider and the button, never the pane
+// header. The header describes what PRODUCED the text below it; letting the
+// slider rewrite it meant dragging after a run relabelled an ablated output as
+// injected, which is the one thing this demo must never do.
 function syncLabel() {
-  const v = +a1.value / 100;
+  const v = currentAlpha();
   document.getElementById('alphaNum').innerHTML = '&alpha; = ' + v.toFixed(2);
-  document.getElementById('ivLabel').textContent =
-    (v < 0 ? 'ABLATED' : v > 0 ? 'INJECTED' : 'BASELINE') + ' α = ' + v.toFixed(2);
+  if (!goBtn.disabled) goBtn.textContent = v === 0 ? 'Run' : 'Run both';
 }
-// Deliberately NOT synced to the cloud's slider. Act 1's alpha selects the
-// condition to generate under; Act 2's explores the geometry, and it has to
-// start at 0 or the audience meets the cloud already collapsed and never sees
-// the structure that ablation destroys.
+// Deliberately NOT synced to the cloud's slider. This one selects the condition
+// to generate under; the cloud's explores the geometry, and it has to start at 0
+// or the audience meets the cloud already collapsed and never sees the structure
+// that ablation destroys.
 a1.addEventListener('input', syncLabel);
 
-document.getElementById('go').addEventListener('click', function () {
-  const btn = document.getElementById('go');
+// The marked point and the scan both belong to the prompt that was last RUN.
+// Editing the box without re-running left them on screen labelled "your prompt",
+// attributing one prompt's measurement to another.
+document.getElementById('prompt').addEventListener('input', function () {
+  if (cloud.anchor) { cloud.anchor = null; if (step === 3) draw(); }
+});
+
+goBtn.addEventListener('click', function () {
   const prompt = document.getElementById('prompt').value;
-  btn.disabled = true; btn.textContent = 'Running…';
+  // Captured once. Dragging the slider mid-run must not change what the
+  // in-flight generation gets labelled as.
+  const alpha = currentAlpha();
+  const intervened = alpha !== 0;
+
+  goBtn.disabled = true; goBtn.textContent = 'Running…';
+  ivLabel.textContent = intervened ? condName(alpha) + ' α = ' + alpha.toFixed(2) : '—';
+  ivTag.textContent = ''; ivTag.className = 'pill';
+  if (!intervened) {
+    outIv.style.color = 'var(--faint)';
+    outIv.textContent = 'Move the slider off zero to run an intervention.';
+  } else {
+    outIv.style.color = '';
+  }
+
   // Sequential on purpose: the server serialises generations behind a lock,
-  // because the hooks are global state.
-  readStream(prompt, 0, document.getElementById('outBase'), document.getElementById('baseTag'))
-    .then(function () {
-      return readStream(prompt, +a1.value / 100,
-                        document.getElementById('outIv'), document.getElementById('ivTag'));
-    })
-    .catch(function (e) { document.getElementById('outIv').textContent = String(e); })
+  // because the hooks are global state. At alpha 0 the second run would just
+  // duplicate the first, so it is skipped rather than spending twenty seconds
+  // proving that greedy decoding is deterministic.
+  const outBase = document.getElementById('outBase');
+  readStream(prompt, 0, outBase, document.getElementById('baseTag'))
+    // Each run reports its own failure in its own pane. One shared catch wrote
+    // every error into the intervened pane, so a failed baseline was blamed on
+    // the wrong condition.
+    .catch(function (e) { outBase.style.color = 'var(--faint)'; outBase.textContent = String(e); })
+    .then(function () { return intervened ? readStream(prompt, alpha, outIv, ivTag) : null; })
+    .catch(function (e) { outIv.style.color = 'var(--faint)'; outIv.textContent = String(e); })
     // Scanned after the generations, not alongside: the server serialises both
     // behind one lock, and asking for the scan first would just delay the text.
     .then(function () { return fetchScan(prompt); })
-    .then(function () { btn.disabled = false; btn.textContent = 'Run both'; });
+    .then(function () { goBtn.disabled = false; syncLabel(); });
 });
 
 syncLabel();
