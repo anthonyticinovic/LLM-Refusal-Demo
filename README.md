@@ -82,6 +82,25 @@ full ablation through baseline to injection, and generate. Under ablation the
 model answers prompts it would normally refuse. Injected into a plainly benign
 prompt, the same direction makes it refuse.
 
+### The presenter demo
+
+`frontend/demo.html`, served by the same process. Start the server as above and
+open http://127.0.0.1:8000/demo.html.
+
+This is the version to show a room. Three acts, stepped with `←` and `→`:
+
+1. **The idea** — the toy cloud, so everyone has the geometry before any model
+   is involved.
+2. **It's real** — the same picture on Qwen2.5-3B's actual activations. The
+   x-axis is r̂ itself; the y-axis is the strongest direction left once r̂ is
+   removed. The two classes split left-to-right and barely differ vertically,
+   which is the "single direction" claim as a picture.
+3. **The model obeys** — one prompt run at baseline and under the intervention,
+   side by side, streamed live.
+
+It needs the same extraction artifact as Layer 2. The detailed pages are still
+there — `live.html` has the per-token projection chart and the full model card.
+
 ### What it looks like when it works
 
 Ablation, on a prompt the model refuses at baseline:
@@ -113,6 +132,7 @@ non-zero on failure.
 |---|---|
 | `frontend/index.html?selftest=1` | Layer 1's geometry claims, in the page, no dependencies |
 | `python -m backend.checks.check_direction` | unit norm, split-half stability, class separation, per-layer table |
+| `python -m backend.checks.check_projection` | the demo's 2D plane: y is orthogonal to r̂, and x is where the classes actually separate |
 | `python -m backend.checks.check_causal` | the actual claim: refusal rate by condition on held-out prompts |
 | `python -m backend.checks.spot_check --disagree` | shows raw generations where the refusal matcher is likeliest wrong |
 | `python -m backend.checks.check_stream` | tokens arrive incrementally (needs the server running) |
@@ -136,9 +156,11 @@ some raw generations with `spot_check`.
 frontend/
   index.html    Layer 1, self-contained, no dependencies
   live.html     Layer 2 UI: prompt box, alpha slider, streamed tokens, projection chart
+  demo.html     the three-act presenter demo
 backend/
   model.py      loads the model and fixes the one indexing convention the rest relies on
   extract.py    runs the prompt pairs, caches every layer's activations, computes r̂
+  projection.py the demo's fixed 2D plane, built from those cached activations
   hooks.py      the two interventions and the single alpha that drives them
   generate.py   token-by-token generation with the hooks applied, plus the projection trace
   refusal.py    the substring refusal matcher and why it is deliberately blunt
@@ -161,5 +183,5 @@ rather than TransformerLens, hand-rolled canvas rather than three.js, projection
 arithmetic forced to fp32 under a bf16 model, and the prompt-set rewrite that got
 Layer 2 over its causal bar.
 
-A guided, presenter-driven version of the demo is designed but not yet built; the
-spec is in [docs/superpowers/specs/](docs/superpowers/specs/).
+The presenter demo's design and build plan are in
+[docs/superpowers/](docs/superpowers/).

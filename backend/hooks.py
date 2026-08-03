@@ -129,14 +129,25 @@ class ProjectionTrace:
       `post` — what actually flowed onward after the intervention. Under full
                ablation it is ~0 by construction, which is the useful sanity
                check that the hooks fired at all.
+
+    `uhat`, when supplied, is the presenter demo's second plane axis (see
+    projection.py). `pre_y` then tracks the token's position along it, so the
+    live point can be drawn in the same plane as the cached activations. It is
+    recorded pre-intervention to match `pre` — and because both interventions
+    move the stream along r̂, which is orthogonal to u, so the intervention
+    should leave this coordinate alone. Watching it stay put while `pre` moves
+    is a free sanity check that the intervention is as surgical as claimed.
     """
 
     pre: List[float] = field(default_factory=list)
     post: List[float] = field(default_factory=list)
+    uhat: Optional[torch.Tensor] = None
+    pre_y: List[float] = field(default_factory=list)
 
     def reset(self) -> None:
         self.pre.clear()
         self.post.clear()
+        self.pre_y.clear()
 
 
 @contextlib.contextmanager
@@ -162,7 +173,10 @@ def apply(model_blocks, iv: Optional[Intervention], trace: Optional[ProjectionTr
                         # Last position only: during prefill that is the final
                         # prompt token, during decode it is the token just
                         # produced. One entry per forward call either way.
-                        trace.pre.append(float((h[0, -1].float() @ rhat.float()).item()))
+                        last = h[0, -1].float()
+                        trace.pre.append(float((last @ rhat.float()).item()))
+                        if trace.uhat is not None:
+                            trace.pre_y.append(float((last @ trace.uhat.float()).item()))
 
                     if iv.ablation > 0.0:
                         h = project_out(h, rhat, iv.ablation)

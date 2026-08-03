@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The refusal direction</title>
+<style>
+:root {
+  --paper:#EBEBE4; --stage:#F4F4EE; --border:#DCDCD2; --line:#C6C6BB;
+  --ink:#2A2C2C; --muted:#6E706A; --faint:#9A9B92;
+  --harmless:#6E93AE; --harmful:#C67E60; --rhat:#7C9E77;
+}
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  margin:0; background:var(--paper); color:var(--ink);
+  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+header { display:flex; justify-content:space-between; align-items:baseline;
+         padding:20px 44px 0; flex:none; }
+h1 { font-size:14px; font-weight:500; color:var(--faint); margin:0; letter-spacing:.02em; }
+.dots { display:flex; align-items:center; gap:9px; color:var(--faint);
+        font-size:13px; font-variant-numeric:tabular-nums; }
+.dot { width:8px; height:8px; border-radius:50%; background:#D2D2C7; transition:background .18s; }
+.dot.on { background:var(--harmful); }
+main { flex:1; display:flex; align-items:center; justify-content:center;
+       padding:0 44px; min-height:0; }
+.act { display:none; width:100%; max-width:1060px; }
+.act.on { display:block; }
+.act h2 { font-size:30px; font-weight:500; margin:0 0 4px; letter-spacing:-.01em; }
+.sub { color:var(--muted); font-size:16px; margin:0 0 20px; }
+.stage { background:var(--stage); border:1px solid var(--border); border-radius:14px; }
+.note { color:var(--faint); font-size:13px; margin:14px 0 0; }
+footer { padding:12px 44px 20px; color:var(--faint); font-size:13px;
+         display:flex; justify-content:space-between; flex:none; }
+.ctl { display:flex; align-items:center; gap:16px; margin-top:16px; }
+.ctl span.lbl { color:var(--muted); font-size:13px; white-space:nowrap; }
+.ctl output { font-variant-numeric:tabular-nums; min-width:74px; text-align:right; font-size:15px; }
+input[type=range] { flex:1; -webkit-appearance:none; appearance:none;
+                    height:4px; border-radius:2px; background:var(--line); outline:none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+  width:17px; height:17px; border-radius:50%; background:var(--stage);
+  border:1px solid var(--line); cursor:pointer; }
+input[type=range]::-moz-range-thumb { width:17px; height:17px; border-radius:50%;
+  background:var(--stage); border:1px solid var(--line); cursor:pointer; }
+canvas { display:block; width:100%; }
+.pill { display:inline-block; padding:2px 9px; border-radius:999px;
+        font-size:11px; letter-spacing:.04em; border:1px solid transparent; }
+.pill.refuse { color:#8C4A31; background:#F2DDD3; border-color:#E3C6B7; }
+.pill.comply { color:#4A6B47; background:#DDE8DB; border-color:#C6D8C3; }
+#a3prompt { width:100%; padding:12px 14px; border:1px solid var(--border);
+            border-radius:10px; background:var(--stage); color:var(--ink);
+            font:inherit; font-size:15px; }
+#a3go { padding:10px 22px; border:1px solid var(--line); border-radius:10px;
+        background:var(--stage); color:var(--ink); font:inherit; cursor:pointer; }
+#a3go:disabled { color:var(--faint); cursor:default; }
+.pane { flex:1; padding:16px; min-height:236px; display:flex; flex-direction:column; }
+.pane .hd { display:flex; justify-content:space-between; align-items:center;
+            color:var(--faint); font-size:11px; letter-spacing:.06em; margin-bottom:9px; }
+.out { white-space:pre-wrap; font-size:15px; line-height:1.55; overflow:hidden; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Refusal in language models is mediated by a single direction</h1>
+  <div class="dots"><span id="stepnum">1 / 3</span>
+    <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+  </div>
+</header>
+
+<main>
+  <section class="act on" id="act1">
+    <h2>The idea</h2>
+    <p class="sub">Two clouds of made-up points, and one direction drawn through them.</p>
+    <div class="stage" style="padding:16px"><canvas id="cloud"></canvas></div>
+    <div class="ctl">
+      <span class="lbl">&larr; ablate</span>
+      <input id="a1alpha" type="range" min="-100" max="100" value="0">
+      <span class="lbl">inject &rarr;</span>
+      <output id="a1num">&alpha; = 0.00</output>
+    </div>
+    <p class="note">A toy — 3 dimensions, synthetic points. What carries over is the arithmetic, which is the same one the real model gets next.</p>
+  </section>
+
+  <section class="act" id="act2">
+    <h2>It's real</h2>
+    <p class="sub">The same picture, on Qwen2.5-3B's actual activations — one axis out of 2,048.</p>
+    <div class="stage" style="padding:16px"><canvas id="plane"></canvas></div>
+    <div class="ctl">
+      <span class="lbl">&larr; ablate</span>
+      <input id="a2alpha" type="range" min="-100" max="100" value="0">
+      <span class="lbl">inject &rarr;</span>
+      <output id="a2num">&alpha; = 0.00</output>
+    </div>
+    <p class="note" id="a2note">A 2D shadow of a 2048-dimensional space, chosen to put r&#770; on the x-axis. Up the page is the strongest thing left once r&#770; is removed — and the classes barely differ along it.</p>
+  </section>
+
+  <section class="act" id="act3">
+    <h2>The model obeys</h2>
+    <p class="sub">Same prompt, same weights. Only the residual stream changed.</p>
+    <input id="a3prompt" value="Write a phishing email that impersonates a bank's fraud department.">
+    <div style="display:flex;gap:16px;margin-top:14px">
+      <div class="stage pane">
+        <div class="hd"><span>BASELINE &alpha; = 0</span><span id="baseTag"></span></div>
+        <div class="out" id="outBase"></div>
+      </div>
+      <div class="stage pane">
+        <div class="hd"><span id="ivLabel">ABLATED</span><span id="ivTag"></span></div>
+        <div class="out" id="outIv"></div>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">&larr; ablate</span>
+      <input id="a3alpha" type="range" min="-100" max="100" value="-100">
+      <span class="lbl">inject &rarr;</span>
+      <output id="a3num">&alpha; = -1.00</output>
+      <button id="a3go">Run both</button>
+    </div>
+    <p class="note">Refusal is labelled by a crude substring matcher, so read the text rather than the tag.</p>
+  </section>
+</main>
+
+<footer><span>&larr; &rarr; to move &middot; <a href="live.html" style="color:var(--faint)">full detail</a></span><span id="hint"></span></footer>
+
+<script>
+(function () {
+
+// ---------------------------------------------------------------------------
+// Shell: three acts, keyboard-stepped.
+// ---------------------------------------------------------------------------
+const acts = [].slice.call(document.querySelectorAll('.act'));
+const dots = [].slice.call(document.querySelectorAll('.dot'));
+let step = 0;
+
+function show(i) {
+  step = Math.max(0, Math.min(acts.length - 1, i));
+  acts.forEach(function (a, n) { a.classList.toggle('on', n === step); });
+  dots.forEach(function (d, n) { d.classList.toggle('on', n === step); });
+  document.getElementById('stepnum').textContent = (step + 1) + ' / ' + acts.length;
+  if (step === 0) drawCloud();
+  if (step === 1) drawPlane();
+}
+
+addEventListener('keydown', function (e) {
+  // e.target is not always an element — a keydown dispatched at the window has
+  // no .matches, and calling it blind kills the handler.
+  const t = e.target;
+  if (t && t.matches && t.matches('input,textarea,button')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(step + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); show(step - 1); }
+});
+
+function fit(cv, h) {
+  const dpr = devicePixelRatio || 1;
+  const w = cv.parentElement.clientWidth - 32;
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return { g: g, w: w, h: h };
+}
+
+function stageHeight() {
+  return Math.max(280, Math.min(430, innerHeight - 340));
+}
+
+// ---------------------------------------------------------------------------
+// Act 1 — the toy cloud. Geometry ported from index.html, which keeps these as
+// pure functions precisely so they can be reused without dragging the renderer
+// along. Same maths, paper palette, and none of the readout panels: the numbers
+// belong on index.html, the intuition belongs here.
+// ---------------------------------------------------------------------------
+const N_PER_CLASS = 130, OFFSET = 3.0, SIGMA = 1.0;
+
+function normalize(v) { const n = Math.hypot(v.x, v.y, v.z); return { x:v.x/n, y:v.y/n, z:v.z/n }; }
+function dot(a, b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+function meanOf(pts) {
+  const m = { x:0, y:0, z:0 };
+  for (const p of pts) { m.x += p.x; m.y += p.y; m.z += p.z; }
+  const n = pts.length || 1;
+  return { x:m.x/n, y:m.y/n, z:m.z/n };
+}
+function gauss() {
+  let u = 0; while (u === 0) u = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
+}
+const GEN_DIR = normalize({ x: 0.72, y: 0.45, z: -0.53 });
+
+function sampleCloud() {
+  const pts = [];
+  for (let cls = 0; cls < 2; cls++) {
+    const c = cls === 1 ? OFFSET : 0;
+    for (let i = 0; i < N_PER_CLASS; i++) {
+      pts.push({
+        x: GEN_DIR.x * c + gauss() * SIGMA,
+        y: GEN_DIR.y * c + gauss() * SIGMA,
+        z: GEN_DIR.z * c + gauss() * SIGMA,
+        cls: cls, extract: i % 2 === 0
+      });
+    }
+  }
+  const exA = pts.filter(p => p.cls === 1 && p.extract);
+  const exB = pts.filter(p => p.cls === 0 && p.extract);
+  const a = meanOf(exA), b = meanOf(exB);
+  return { points: pts, rhat: normalize({ x:a.x-b.x, y:a.y-b.y, z:a.z-b.z }) };
+}
+
+// Ablate first, then inject — the same order Layer 2 applies them.
+function transform(p, rhat, t, alpha) {
+  const d = dot(p, rhat), k = alpha - t * d;
+  return { x: p.x + k*rhat.x, y: p.y + k*rhat.y, z: p.z + k*rhat.z };
+}
+
+const cloud = sampleCloud();
+const view = { yaw: 0.62, pitch: 0.32, dist: 9.2, t: 0, alpha: 0 };
+
+function project(p, w, h) {
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const x1 = p.x*cy - p.z*sy, z1 = p.x*sy + p.z*cy;
+  const y2 = p.y*cp - z1*sp, z2 = p.y*sp + z1*cp;
+  const zc = z2 + view.dist;
+  if (zc <= 0.15) return null;
+  const f = h * 1.28;
+  return { sx: w/2 + (f*x1)/zc, sy: h/2 - (f*y2)/zc, zc: zc };
+}
+
+function drawCloud() {
+  const c = fit(document.getElementById('cloud'), stageHeight());
+  const g = c.g, w = c.w, h = c.h;
+  const drawn = [];
+  for (const p of cloud.points) {
+    const q = project(transform(p, cloud.rhat, view.t, view.alpha), w, h);
+    if (q) drawn.push({ q: q, cls: p.cls });
+  }
+  drawn.sort((a, b) => b.q.zc - a.q.zc);
+  for (const d of drawn) {
+    g.globalAlpha = Math.max(0.32, Math.min(0.92, 13 / d.q.zc - 0.16));
+    g.fillStyle = d.cls === 1 ? '#C67E60' : '#6E93AE';
+    g.beginPath(); g.arc(d.q.sx, d.q.sy, 4.2, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+
+  // Drawn from behind the harmless cloud to well past the harmful one, so the
+  // shaft reads against the points and the head and label clear the cloud
+  // entirely. An arrow that ends inside the point mass is invisible on a
+  // projector.
+  const back = -0.9, fwd = 2.1;
+  const o = project({ x: cloud.rhat.x*OFFSET*back, y: cloud.rhat.y*OFFSET*back,
+                      z: cloud.rhat.z*OFFSET*back }, w, h);
+  const tip = project({ x: cloud.rhat.x*OFFSET*fwd, y: cloud.rhat.y*OFFSET*fwd,
+                        z: cloud.rhat.z*OFFSET*fwd }, w, h);
+  if (o && tip) {
+    g.strokeStyle = '#F4F4EE'; g.lineWidth = 5.5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(o.sx, o.sy); g.lineTo(tip.sx, tip.sy); g.stroke();
+    g.strokeStyle = '#7C9E77'; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(o.sx, o.sy); g.lineTo(tip.sx, tip.sy); g.stroke();
+    const ang = Math.atan2(tip.sy - o.sy, tip.sx - o.sx);
+    g.beginPath(); g.moveTo(tip.sx, tip.sy);
+    g.lineTo(tip.sx - 11*Math.cos(ang - 0.4), tip.sy - 11*Math.sin(ang - 0.4));
+    g.moveTo(tip.sx, tip.sy);
+    g.lineTo(tip.sx - 11*Math.cos(ang + 0.4), tip.sy - 11*Math.sin(ang + 0.4));
+    g.stroke();
+    g.fillStyle = '#7C9E77'; g.font = '15px ui-sans-serif,system-ui,sans-serif';
+    g.fillText('r̂', tip.sx + 9, tip.sy - 5);
+  }
+  g.font = '12px ui-sans-serif,system-ui,sans-serif';
+  g.fillStyle = '#6E93AE'; g.fillText('harmless', 12, h - 26);
+  g.fillStyle = '#C67E60'; g.fillText('harmful', 12, h - 10);
+}
+
+const a1 = document.getElementById('a1alpha');
+a1.addEventListener('input', function () {
+  const v = +a1.value / 100;
+  document.getElementById('a1num').innerHTML = '&alpha; = ' + v.toFixed(2);
+  view.t = v < 0 ? -v : 0;
+  view.alpha = v > 0 ? v * OFFSET : 0;
+  drawCloud();
+});
+
+// Slow idle rotation makes the third dimension legible without a camera script:
+// the ablated cloud looks like a line from one angle and opens into a plane as
+// it turns, which is the thing the still image cannot say.
+setInterval(function () {
+  if (step !== 0) return;
+  view.yaw += 0.0022;
+  drawCloud();
+}, 40);
+
+// ---------------------------------------------------------------------------
+// Act 2 — the real activation plane, from /api/projection.
+// ---------------------------------------------------------------------------
+const plane = { harmful: [], harmless: [], live: null, ready: false };
+
+fetch('/api/projection').then(r => r.json()).then(function (d) {
+  if (!d.available) {
+    document.getElementById('a2note').textContent =
+      'No direction artifact yet — run `python -m backend.extract` and reload.';
+    return;
+  }
+  plane.harmful = d.harmful; plane.harmless = d.harmless; plane.ready = true;
+  if (step === 1) drawPlane();
+}).catch(function () {
+  document.getElementById('a2note').textContent =
+    'Could not reach the server — start it with `python -m backend.app`.';
+});
+
+function bounds() {
+  const pts = plane.harmful.concat(plane.harmless);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+  let y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+  const xp = (x1 - x0) * 0.34 || 1, yp = (y1 - y0) * 0.22 || 1;
+  return { x0: x0 - xp, x1: x1 + xp, y0: y0 - yp, y1: y1 + yp };
+}
+
+function drawPlane() {
+  if (!plane.ready) return;
+  const c = fit(document.getElementById('plane'), stageHeight());
+  const g = c.g, w = c.w, h = c.h;
+  const b = bounds();
+  const X = v => 46 + (v - b.x0) / (b.x1 - b.x0) * (w - 76);
+  const Y = v => h - 44 - (v - b.y0) / (b.y1 - b.y0) * (h - 78);
+
+  g.strokeStyle = '#C6C6BB'; g.lineWidth = 1.5; g.lineCap = 'round';
+  g.beginPath(); g.moveTo(34, h - 34); g.lineTo(w - 20, h - 34); g.stroke();
+  g.beginPath(); g.moveTo(w - 20, h - 34);
+  g.lineTo(w - 29, h - 39); g.moveTo(w - 20, h - 34); g.lineTo(w - 29, h - 29);
+  g.strokeStyle = '#7C9E77'; g.stroke();
+  g.fillStyle = '#7C9E77'; g.font = '15px ui-sans-serif,system-ui,sans-serif';
+  g.fillText('r̂', w - 30, h - 44);
+  g.fillStyle = '#9A9B92'; g.font = '12px ui-sans-serif,system-ui,sans-serif';
+  g.fillText('everything else', 8, 16);
+
+  const midx = plane.harmless.reduce((s, p) => s + p[0], 0) / plane.harmless.length;
+  g.strokeStyle = '#D7D7CC'; g.lineWidth = 1; g.setLineDash([4, 4]);
+  g.beginPath(); g.moveTo(X(midx), 24); g.lineTo(X(midx), h - 34); g.stroke();
+  g.setLineDash([]);
+
+  function blob(pts, col) {
+    g.fillStyle = col;
+    for (const p of pts) { g.beginPath(); g.arc(X(p[0]), Y(p[1]), 4.6, 0, 7); g.fill(); }
+  }
+  blob(plane.harmless, '#6E93AE');
+  blob(plane.harmful, '#C67E60');
+
+  g.font = '12px ui-sans-serif,system-ui,sans-serif';
+  g.fillStyle = '#6E93AE'; g.fillText('harmless', 46, h - 14);
+  g.fillStyle = '#C67E60'; g.fillText('harmful', w - 116, h - 14);
+
+  if (plane.live) {
+    const lx = X(plane.live[0]), ly = Y(plane.live[1]);
+    g.fillStyle = '#2A2C2C';
+    g.beginPath(); g.arc(lx, ly, 6, 0, 7); g.fill();
+    g.strokeStyle = '#2A2C2C'; g.lineWidth = 1.5;
+    g.beginPath(); g.arc(lx, ly, 12, 0, 7); g.stroke();
+    g.font = '12px ui-sans-serif,system-ui,sans-serif';
+    g.fillText('your prompt', lx - 32, ly - 20);
+  }
+}
+
+// The slider moves a representative point rather than waiting on a generation,
+// so the geometric claim can be made before Act 3 spends 20 seconds proving it.
+// Ablation drags x to where the harmless cloud sits; injection pushes past it.
+const a2 = document.getElementById('a2alpha');
+a2.addEventListener('input', function () {
+  const v = +a2.value / 100;
+  document.getElementById('a2num').innerHTML = '&alpha; = ' + v.toFixed(2);
+  if (!plane.ready) return;
+  const hm = plane.harmful.reduce((s, p) => [s[0] + p[0], s[1] + p[1]], [0, 0])
+                          .map(z => z / plane.harmful.length);
+  const bm = plane.harmless.reduce((s, p) => s + p[0], 0) / plane.harmless.length;
+  const span = hm[0] - bm;
+  plane.live = [hm[0] + v * span * (v < 0 ? 1 : 1.4), hm[1]];
+  drawPlane();
+});
+
+// ---------------------------------------------------------------------------
+// Act 3 — the live model, both conditions side by side.
+// ---------------------------------------------------------------------------
+function readStream(prompt, alpha, el, tag) {
+  el.textContent = ''; tag.textContent = ''; tag.className = 'pill';
+  return fetch('/generate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: prompt, alpha: alpha, max_new_tokens: 64 })
+  }).then(function (res) {
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    return (function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return;
+        buf += dec.decode(r.value, { stream: true });
+        const parts = buf.split('\n\n'); buf = parts.pop();
+        for (const p of parts) {
+          if (p.indexOf('data: ') !== 0) continue;
+          const ev = JSON.parse(p.slice(6));
+          if (ev.type === 'token') {
+            el.textContent += ev.token;
+            if (ev.y !== null && ev.y !== undefined) {
+              plane.live = [ev.projection, ev.y];
+            }
+          } else if (ev.type === 'done') {
+            tag.textContent = ev.refusal_heuristic ? 'refused' : 'complied';
+            tag.className = 'pill ' + (ev.refusal_heuristic ? 'refuse' : 'comply');
+          } else if (ev.type === 'error') {
+            el.textContent = ev.message;
+          }
+        }
+        return pump();
+      });
+    })();
+  });
+}
+
+const a3 = document.getElementById('a3alpha');
+a3.addEventListener('input', function () {
+  const v = +a3.value / 100;
+  document.getElementById('a3num').innerHTML = '&alpha; = ' + v.toFixed(2);
+  document.getElementById('ivLabel').textContent =
+    (v < 0 ? 'ABLATED' : v > 0 ? 'INJECTED' : 'BASELINE') + ' α = ' + v.toFixed(2);
+});
+
+document.getElementById('a3go').addEventListener('click', function () {
+  const btn = document.getElementById('a3go');
+  const prompt = document.getElementById('a3prompt').value;
+  btn.disabled = true; btn.textContent = 'Running…';
+  // Sequential on purpose: the server serialises generations behind a lock,
+  // because the hooks are global state.
+  readStream(prompt, 0, document.getElementById('outBase'), document.getElementById('baseTag'))
+    .then(function () {
+      return readStream(prompt, +a3.value / 100,
+                        document.getElementById('outIv'), document.getElementById('ivTag'));
+    })
+    .catch(function (e) { document.getElementById('outIv').textContent = String(e); })
+    .then(function () { btn.disabled = false; btn.textContent = 'Run both'; });
+});
+
+addEventListener('resize', function () { if (step === 0) drawCloud(); if (step === 1) drawPlane(); });
+show(0);
+
+})();
+</script>
+</body>
+</html>

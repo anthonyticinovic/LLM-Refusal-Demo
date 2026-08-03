@@ -56,6 +56,7 @@ def main() -> int:
             return 1
 
     results.append(run("direction quality", ["backend.checks.check_direction"]))
+    results.append(run("projection plane", ["backend.checks.check_projection"]))
 
     causal = ["backend.checks.check_causal", "--max-new-tokens", str(args.max_new_tokens)]
     if args.screen:

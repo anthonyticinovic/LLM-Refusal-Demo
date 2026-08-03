@@ -105,21 +105,26 @@ def stream_generate(
     alpha: float = 0.0,
     direction: Optional[Direction] = None,
     max_new_tokens: int = 48,
+    uhat: Optional[torch.Tensor] = None,
 ) -> Iterator[dict]:
     """Yield one event per generated token.
 
     Each event: {"token": str, "index": int, "projection": float,
-                 "projection_post": float}
+                 "projection_post": float, "y": float | None}
 
     `projection` is the model's own pre-intervention projection onto r̂ at the
     extraction layer, for the forward pass that produced this token. Under full
     ablation it stays informative (the model still tries to write the direction
     back); `projection_post` is what survived, and is ~0 there by construction.
+
+    `y` is the position along the presenter demo's second plane axis, and is
+    None unless `uhat` was supplied. Together with `projection` it places the
+    live generation in the same plane as the cached activations.
     """
     iv = None
     trace = None
     if direction is not None:
-        trace = hooks_mod.ProjectionTrace()
+        trace = hooks_mod.ProjectionTrace(uhat=uhat)
         iv = hooks_mod.resolve_alpha(alpha, direction.rhat, direction.layer, direction.diff_norm)
 
     ids = lm.encode(prompt)
@@ -149,6 +154,7 @@ def stream_generate(
                 "index": step,
                 "projection": trace.pre[step] if trace and step < len(trace.pre) else 0.0,
                 "projection_post": trace.post[step] if trace and step < len(trace.post) else 0.0,
+                "y": trace.pre_y[step] if trace and step < len(trace.pre_y) else None,
             }
             cur = torch.tensor([[next_id]], device=lm.model.device)
 
