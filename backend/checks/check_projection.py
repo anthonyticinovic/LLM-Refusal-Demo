@@ -1,14 +1,14 @@
-"""Verify the presenter demo's projection plane is what it claims to be.
+"""Verify the demo's 3D frame is what it claims to be.
 
-The demo asserts on screen that x is the refusal direction and y is "everything
-else". That is only honest if y genuinely carries no r̂ component, so this checks
-orthogonality directly, plus that the plane still separates the two classes
-along x — a projection that lost the separation would be showing the room
-nothing.
+The demo asserts on screen that one axis is the refusal direction and the other
+two are "everything else". That is only honest if the other two carry no r̂
+component, so this checks orthogonality directly.
 
-The last check is the interesting one: it asserts the classes separate along r̂
-far more than along the strongest remaining direction. That is the claim the
-whole demo rests on, stated as an inequality rather than a picture.
+The last check is the one that matters: the classes must separate along r̂ and
+essentially not at all along the strongest remaining directions. That is the
+"single direction" claim stated as an inequality rather than shown as a picture.
+If refusal were spread across several directions, the leftover axes would pick
+it up and this would fail.
 
     python -m backend.checks.check_projection
 """
@@ -32,7 +32,7 @@ def check(name: str, passed: bool, detail: str = "") -> None:
 
 
 def separation(a: np.ndarray, b: np.ndarray) -> float:
-    """Mean gap between two samples in pooled standard deviations."""
+    """Mean gap between two samples, in pooled standard deviations."""
     pooled = float(np.sqrt((a.var(ddof=1) + b.var(ddof=1)) / 2))
     return float((a.mean() - b.mean()) / pooled) if pooled > 0 else 0.0
 
@@ -44,28 +44,37 @@ def main() -> int:
         print(f"  FAIL  {e}")
         return 1
 
-    rhat, u = plane["rhat"], plane["u"]
+    rhat, axes = plane["rhat"], plane["axes"]
+    hf = np.array(plane["harmful"])
+    hl = np.array(plane["harmless"])
+
     print(f"model        {plane['model_id']}")
     print(f"layer        {plane['layer']}   d_model {plane['d_model']}")
-    print(f"points       {len(plane['harmful'])} harmful, {len(plane['harmless'])} harmless\n")
+    print(f"points       {len(hf)} harmful, {len(hl)} harmless\n")
 
-    dot = float(abs(rhat @ u))
-    check("u is orthogonal to r-hat", dot < 1e-5, f"|u . rhat| = {dot:.2e}")
+    worst_r = max(float(abs(u @ rhat)) for u in axes)
+    check("leftover axes are orthogonal to r-hat", worst_r < 1e-5,
+          f"max |u . rhat| = {worst_r:.2e}")
 
-    unorm = float(np.linalg.norm(u))
-    check("||u|| = 1 within 1e-5", abs(unorm - 1) < 1e-5, f"||u|| = {unorm:.8f}")
+    worst_uu = 0.0
+    for i in range(len(axes)):
+        for j in range(i + 1, len(axes)):
+            worst_uu = max(worst_uu, float(abs(axes[i] @ axes[j])))
+    check("leftover axes are orthogonal to each other", worst_uu < 1e-5,
+          f"max |u_i . u_j| = {worst_uu:.2e}")
 
-    hx = np.array([p[0] for p in plane["harmful"]])
-    bx = np.array([p[0] for p in plane["harmless"]])
-    xsep = separation(hx, bx)
-    check("classes separate along x by > 1 SD", xsep > 1.0,
-          f"{xsep:.2f} SDs (harmless {bx.mean():+.2f}, harmful {hx.mean():+.2f})")
+    worst_n = max(abs(float(np.linalg.norm(u)) - 1) for u in axes)
+    check("leftover axes are unit length", worst_n < 1e-5, f"max |‖u‖ − 1| = {worst_n:.2e}")
 
-    hy = np.array([p[1] for p in plane["harmful"]])
-    by = np.array([p[1] for p in plane["harmless"]])
-    ysep = abs(separation(hy, by))
-    check("y separates the classes far less than x", ysep < xsep,
-          f"y = {ysep:.2f} SDs vs x = {xsep:.2f} SDs")
+    xsep = separation(hf[:, 0], hl[:, 0])
+    check("classes separate along r-hat by > 1 SD", xsep > 1.0,
+          f"{xsep:+.2f} SDs (harmless {hl[:, 0].mean():+.2f}, harmful {hf[:, 0].mean():+.2f})")
+
+    others = [abs(separation(hf[:, i + 1], hl[:, i + 1])) for i in range(len(axes))]
+    worst_other = max(others)
+    check("classes barely separate along the leftover axes", worst_other < xsep / 2,
+          "r-hat %+.2f SD vs %s" % (xsep, ", ".join(f"u{i+1} {v:.2f} SD"
+                                                    for i, v in enumerate(others))))
 
     passed = sum(CHECKS)
     print(f"\n{passed}/{len(CHECKS)} passed")

@@ -69,14 +69,14 @@ async def lifespan(app: FastAPI):
 
         plane = load_plane()
         STATE["plane"] = plane
-        STATE["uhat"] = _torch.from_numpy(
-            plane["u"].astype("float32")
+        STATE["axes"] = _torch.from_numpy(
+            plane["axes"].astype("float32")
         ).to(lm.model.device)
         print(f"[startup] plane: {len(plane['harmful'])} harmful, "
               f"{len(plane['harmless'])} harmless points")
     except FileNotFoundError:
         STATE["plane"] = None
-        STATE["uhat"] = None
+        STATE["axes"] = None
     yield
 
 
@@ -178,7 +178,7 @@ def generate(req: GenerateRequest):
             t0 = time.time()
             text, n = "", 0
             for ev in stream_generate(lm, req.prompt, req.alpha, direction,
-                                      req.max_new_tokens, uhat=STATE.get("uhat")):
+                                      req.max_new_tokens, axes=STATE.get("axes")):
                 text += ev["token"]
                 n += 1
                 yield _sse({"type": "token", **ev})

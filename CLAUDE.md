@@ -197,6 +197,45 @@ only the causal check needs generation.
 
 ---
 
+## The presenter demo (`frontend/demo.html`)
+
+Two acts, keyboard-stepped, on the paper palette: **the model obeys** (live
+paired generation, refusal vs compliance) then **why** (the real activations in
+3D, rotatable). Design and build notes in `docs/superpowers/`.
+
+**Everything in it is real.** An earlier draft opened with Layer 1's synthetic
+cloud, which read as disjointed the moment the next slide showed real data — and
+it made the natural request ("put my prompt in the toy cloud") impossible to
+honour honestly, since the toy's points and its r̂ have no relationship to the
+model's activation space. `projection.py` fixes that by giving the same treatment
+one more axis: coordinates are `(h·r̂, h·u₁, h·u₂)` where u₁, u₂ are the leading
+PCs of the activations after r̂ is projected out. The cloud is 40+40 cached
+extraction activations at the extraction layer; the marked point is the live
+prompt measured at its last prompt token on the **baseline** run, which is the
+same quantity at the same layer as every other point.
+
+This deliberately revisits "PCA/UMAP/t-SNE switcher" from the not-built list.
+What exists is narrower and stays inside that line: one fixed frame chosen to
+show one direction, no switcher, no general tool.
+
+Why those axes are the honest choice: using the *strongest* leftover directions
+is the hardest available test of "it's a single direction" — if refusal were
+spread over several directions, u₁ or u₂ would catch it. On Qwen2.5-3B layer 21
+they don't (3.94 SD along r̂, 0.00 along both), while the three axes carry
+comparable variance (26/21/14%), so it renders as a genuine 3D blob rather than
+a sheet. `check_projection` asserts all of this.
+
+Two things that look like polish but are load-bearing:
+
+- The Act 2 slider applies the **real** arithmetic to the measured point —
+  `x → (1−t)x` for ablation, `x → x + α·MULT·‖d‖` for injection, leftover axes
+  untouched. An earlier version moved a *fabricated* point derived from the
+  harmful centroid and drew it identically to a measurement. Don't reintroduce a
+  synthetic marker that looks like a real one.
+- The two sliders are **not** synced. Act 1's alpha picks the condition to
+  generate under; Act 2's explores the geometry and must start at 0, or the room
+  meets the cloud already collapsed and never sees what ablation destroys.
+
 ## Honesty commitments
 
 These are load-bearing for the demo's credibility. Don't quietly drop them.

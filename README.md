@@ -87,19 +87,25 @@ prompt, the same direction makes it refuse.
 `frontend/demo.html`, served by the same process. Start the server as above and
 open http://127.0.0.1:8000/demo.html.
 
-This is the version to show a room. Three acts, stepped with `←` and `→`:
+This is the version to show a room. Two acts, stepped with `←` and `→`:
 
-1. **The idea** — the toy cloud, so everyone has the geometry before any model
-   is involved.
-2. **It's real** — the same picture on Qwen2.5-3B's actual activations. The
-   x-axis is r̂ itself; the y-axis is the strongest direction left once r̂ is
-   removed. The two classes split left-to-right and barely differ vertically,
-   which is the "single direction" claim as a picture.
-3. **The model obeys** — one prompt run at baseline and under the intervention,
-   side by side, streamed live.
+1. **The model obeys** — your prompt run at baseline and under the intervention,
+   side by side, streamed live. Refusal on the left, compliance on the right.
+2. **Why** — the model's real activations in 3D, rotatable. One axis is r̂; the
+   other two are the strongest directions left once r̂ is removed. The classes
+   split by 3.94 SD along r̂ and 0.00 SD along both others, which is the "single
+   direction" claim as a picture. The prompt you just ran appears as a marked
+   point, and the slider applies the real arithmetic to it: ablation slides it
+   to the middle of the harmless cloud, injection pushes it past the harmful
+   one. "Line up with r̂" snaps the camera side-on so the split reads directly.
 
-It needs the same extraction artifact as Layer 2. The detailed pages are still
-there — `live.html` has the per-token projection chart and the full model card.
+Nothing in either act is synthetic. The cloud is 40 harmful and 40 harmless
+prompts' activations at layer 21, from the same artifact Layer 2 uses, and the
+marked point is measured at your prompt's last token on the baseline run — the
+same quantity, at the same layer, as every other point on screen.
+
+The detailed pages are still there: `index.html` is the synthetic-geometry toy
+and `live.html` has the per-token projection chart and full model card.
 
 ### What it looks like when it works
 
@@ -132,7 +138,7 @@ non-zero on failure.
 |---|---|
 | `frontend/index.html?selftest=1` | Layer 1's geometry claims, in the page, no dependencies |
 | `python -m backend.checks.check_direction` | unit norm, split-half stability, class separation, per-layer table |
-| `python -m backend.checks.check_projection` | the demo's 2D plane: y is orthogonal to r̂, and x is where the classes actually separate |
+| `python -m backend.checks.check_projection` | the demo's 3D frame: the leftover axes are orthonormal and orthogonal to r̂, and the classes separate along r̂ and not along them |
 | `python -m backend.checks.check_causal` | the actual claim: refusal rate by condition on held-out prompts |
 | `python -m backend.checks.spot_check --disagree` | shows raw generations where the refusal matcher is likeliest wrong |
 | `python -m backend.checks.check_stream` | tokens arrive incrementally (needs the server running) |
@@ -156,11 +162,11 @@ some raw generations with `spot_check`.
 frontend/
   index.html    Layer 1, self-contained, no dependencies
   live.html     Layer 2 UI: prompt box, alpha slider, streamed tokens, projection chart
-  demo.html     the three-act presenter demo
+  demo.html     the two-act presenter demo, on real activations throughout
 backend/
   model.py      loads the model and fixes the one indexing convention the rest relies on
   extract.py    runs the prompt pairs, caches every layer's activations, computes r̂
-  projection.py the demo's fixed 2D plane, built from those cached activations
+  projection.py the demo's fixed 3D frame (r̂ plus two leftover axes), from those cached activations
   hooks.py      the two interventions and the single alpha that drives them
   generate.py   token-by-token generation with the hooks applied, plus the projection trace
   refusal.py    the substring refusal matcher and why it is deliberately blunt
