@@ -74,7 +74,7 @@ def main() -> int:
     print("  python -m backend.app                    # then, in another shell:")
     print("  python -m backend.checks.check_stream")
     print("  python -m backend.checks.spot_check --disagree")
-    print("  open 'frontend/index.html?selftest=1'")
+    print("  open http://127.0.0.1:8000          # step through the demo by hand")
     return 1 if failed else 0
 
 

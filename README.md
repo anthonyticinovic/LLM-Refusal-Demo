@@ -5,11 +5,13 @@ a Single Direction*](https://arxiv.org/abs/2406.11717). It is aimed at engineers
 who want to see for themselves what "a direction in activation space" means
 rather than take it on faith.
 
-There are two layers. The first is a toy you open in a browser: a cloud of points
-with one direction drawn through it, and sliders that ablate or inject that
-direction. The second runs the same arithmetic on the residual stream of a real
-instruct model (Qwen2.5-3B) and shows the generated text change as you move a
-slider.
+It is a four-slide demo you step through with the arrow keys. You see how the
+refusal direction is built from forty prompt pairs, watch a real model
+(Qwen2.5-3B) refuse a prompt and then answer it once that one direction is
+removed, see where in the 36 blocks the decision gets made, and end in the
+model's own activation space with your prompt marked in it.
+
+Everything on screen is measured. There is no synthetic data anywhere.
 
 It all runs locally. The weights are downloaded once from the Hugging Face hub;
 after that there is no network call, and `backend/checks/check_local_only.py`
@@ -48,46 +50,23 @@ being saved into the tree by accident.
 
 ## Running it
 
-### Layer 1 — the geometry
-
-Open `frontend/index.html` in a browser. That is the whole thing: no server, no
-build step, and it works offline.
-
-You get two clouds of synthetic points and a direction `r̂` found from the sampled
-points by difference-of-means. Two sliders act on the points:
-
-- **Ablate**: `h ← h − t(h·r̂)r̂`. Turn it up and the gap between the two clouds
-  shrinks to zero.
-- **Inject**: `h ← h + α·r̂`. Both clouds slide along `r̂` together and the gap
-  between them stays put.
-
-Open `frontend/index.html?selftest=1` to run the layer's checks inside the page.
-
-The layer is a toy and says so on screen. Two offset blobs separating along their
-own difference-of-means does not prove anything on its own; the point is that the
-arithmetic is identical to what Layer 2 does on a real model.
-
-### Layer 2 — the real model
-
 Extract the direction, then start the server:
 
 ```bash
 export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct   # already the default; setting it just makes it explicit
 python -m backend.extract     # difference-of-means over 40 matched prompt pairs, writes backend/artifacts/
-python -m backend.app         # serves http://127.0.0.1:8000/live.html
+python -m backend.app         # serves http://127.0.0.1:8000
 ```
 
-Open http://127.0.0.1:8000/live.html, type a prompt, set the slider anywhere from
-full ablation through baseline to injection, and generate. Under ablation the
-model answers prompts it would normally refuse. Injected into a plainly benign
-prompt, the same direction makes it refuse.
+Open http://127.0.0.1:8000 and step through with `←` and `→`. The two operations
+on the slider are:
 
-### The presenter demo
+- **Ablate** (`α < 0`): `h ← h − t(h·r̂)r̂`, at every block. The residual stream
+  loses its component along r̂ entirely.
+- **Inject** (`α > 0`): `h ← h + α·k·r̂` at the extraction block, where `k` is
+  scaled in units of the raw difference-of-means norm.
 
-`frontend/demo.html`, served by the same process. Start the server as above and
-open http://127.0.0.1:8000/demo.html.
-
-This is the version to show a room. Four acts, stepped with `←` and `→`:
+The four slides:
 
 1. **One direction, from forty pairs** — the extraction corpus, three pairs at a
    time, with the difference-of-means formula. Click through all forty to show
@@ -109,13 +88,10 @@ This is the version to show a room. Four acts, stepped with `←` and `→`:
    to the middle of the harmless cloud, injection pushes it past the harmful
    one. "Line up with r̂" snaps the camera side-on so the split reads directly.
 
-Nothing in either act is synthetic. The cloud is 40 harmful and 40 harmless
-prompts' activations at layer 21, from the same artifact Layer 2 uses, and the
-marked point is measured at your prompt's last token on the baseline run — the
-same quantity, at the same layer, as every other point on screen.
-
-The detailed pages are still there: `index.html` is the synthetic-geometry toy
-and `live.html` has the per-token projection chart and full model card.
+Nothing on any slide is synthetic. The cloud is 40 harmful and 40 harmless
+prompts' activations at block 21, read straight out of the extraction artifact,
+and the marked point is measured at your prompt's last token on the baseline run
+— the same quantity, at the same block, as every other point on screen.
 
 ### What it looks like when it works
 
@@ -146,7 +122,6 @@ non-zero on failure.
 
 | Check | What it establishes |
 |---|---|
-| `frontend/index.html?selftest=1` | Layer 1's geometry claims, in the page, no dependencies |
 | `python -m backend.checks.check_direction` | unit norm, split-half stability, class separation, per-layer table |
 | `python -m backend.checks.check_projection` | the demo's 3D frame: the leftover axes are orthonormal and orthogonal to r̂, and the classes separate along r̂ and not along them |
 | `python -m backend.checks.check_causal` | the actual claim: refusal rate by condition on held-out prompts |
@@ -170,9 +145,7 @@ some raw generations with `spot_check`.
 
 ```
 frontend/
-  index.html    Layer 1, self-contained, no dependencies
-  live.html     Layer 2 UI: prompt box, alpha slider, streamed tokens, projection chart
-  demo.html     the four-act presenter demo, on real activations throughout
+  index.html    the whole front end: four slides, no build step, no dependencies
 backend/
   model.py      loads the model and fixes the one indexing convention the rest relies on
   extract.py    runs the prompt pairs, caches every layer's activations, computes r̂
@@ -198,7 +171,4 @@ touches the residual stream.
 including where this deviates from the obvious approach: raw `transformers` hooks
 rather than TransformerLens, hand-rolled canvas rather than three.js, projection
 arithmetic forced to fp32 under a bf16 model, and the prompt-set rewrite that got
-Layer 2 over its causal bar.
-
-The presenter demo's design and build plan are in
-[docs/superpowers/](docs/superpowers/).
+the causal check over its bar.

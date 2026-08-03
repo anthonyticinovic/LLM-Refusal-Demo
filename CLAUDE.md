@@ -1,8 +1,17 @@
 # CLAUDE.md — working notes for this repo
 
 Two-layer interactive demo of Arditi et al., *Refusal in Language Models Is
-Mediated by a Single Direction*. Layer 1 is geometric intuition on synthetic
-points; Layer 2 is the same arithmetic on a real model's residual stream.
+Mediated by a Single Direction*. One front end (`frontend/index.html`), four
+keyboard-stepped slides, everything measured on a real model's residual stream.
+
+**Historical note.** This began as two layers: a synthetic 3D toy
+(`frontend/index.html`, 850 lines) for geometric intuition, and a detailed live
+page (`frontend/live.html`) for the real model. Both were **deleted on
+2026-08-03** once the presenter demo did the same job on real activations — the
+toy read as disjointed next to real data, and maintaining two front ends meant
+every API or palette change had to be made twice. `git log` has them if they are
+ever wanted. References below to "Layer 1" and "Layer 2" predate that and mean
+the toy and the real-model work respectively.
 
 Audience is engineering peers, not interpretability specialists. The bar is
 **compelling and honest**, not publication-grade. Where something is a toy, the
@@ -12,12 +21,9 @@ UI says so in plain text.
 
 ## Status
 
-Both layers are **done and green** on the deliverable model.
+**Done and green** on the deliverable model.
 
-Layer 1 — 9/9 self-test checks, verified stable over 12 consecutive runs and
-re-confirmed on the M4 Pro. Hardware-independent; needs nothing further.
-
-Layer 2 — **4/4 definition-of-done, verified end-to-end against
+**4/4 definition-of-done, verified end-to-end against
 `Qwen2.5-3B-Instruct` on the M4 Pro (MPS, bf16)**, layer 21 of 36, 24 held-out
 harmful / 20 held-out harmless, spot-checked by hand:
 
@@ -95,15 +101,14 @@ rather than building them.
 ```bash
 pip install -r backend/requirements.txt
 
-# Layer 1 — no server, no build step, works offline
-open frontend/index.html
-open 'frontend/index.html?selftest=1'      # runs the Layer 1 DoD checks in-page
-
-# Layer 2
 export LATENTSPACE_MODEL=Qwen/Qwen2.5-3B-Instruct
 python -m backend.extract                  # writes backend/artifacts/direction.{npz,json}
-python -m backend.app                      # http://127.0.0.1:8000/live.html
+python -m backend.app                      # http://127.0.0.1:8000
 ```
+
+`frontend/index.html` is the whole front end and is served at `/` — the static
+mount uses `html=True`, so the filename is load-bearing. Renaming it breaks the
+root URL.
 
 ## Checks
 
@@ -139,25 +144,13 @@ as the known risk. Its advantage is simpler hook registration — worth about 20
 lines here, against a heavy dependency, fp32 memory blow-up at larger sizes, and
 that MPS risk. Raw `transformers` forward hooks throughout.
 
-**No three.js in Layer 1.** The plan called for three.js from a CDN. A CDN
-dependency contradicts "opens directly in a browser with no server" the moment
-you are offline, and the scene is 260 points, an arrow and a box. Hand-rolled
-canvas 2D projection instead: genuinely self-contained, genuinely offline, one
-file.
+**No three.js, no CDN, no build step.** The plan called for three.js from a CDN.
+A CDN dependency contradicts "works offline" the moment you are offline, and the
+scene is 80 points and an arrow. Hand-rolled canvas 2D projection instead. Still
+true of the current cloud, and the reason the whole front end is one file with no
+toolchain.
 
-**Layer 1 self-tests live in the page.** No `node` on the dev machine, so the DoD
-checks could not be a CLI script without adding a runtime. `index.html?selftest=1`
-runs them against the same pure functions the page renders from — a passing run
-is evidence about the demo, not about a parallel reimplementation.
-
-**Layer 1 estimates r̂ from a held-out half.** The spec implies estimating r̂ from
-all points and measuring on all points. Doing that makes Δcentroid *exactly*
-parallel to r̂, so ablation looks cleaner than it has any right to. Estimating
-from half and measuring on the other half mirrors Layer 2 and leaves an honest
-non-zero `‖Δcentroid‖` residual under full ablation — that residual is r̂'s
-estimation error, and it is worth showing.
-
-**One DoD check was restated.** "Cosine similarity between consecutive r̂ < 0.999"
+**One DoD check was restated (Layer 1, since deleted).** "Cosine similarity between consecutive r̂ < 0.999"
 as a hard bound on every pair is not a sound test: consecutive r̂ are independent
 estimates of the same direction (typical cosine ~0.996, ~5°), so pairs land
 closer by chance and a max-over-8 bound fails on correct code the majority of the
@@ -197,14 +190,13 @@ only the causal check needs generation.
 
 ---
 
-## The presenter demo (`frontend/demo.html`)
+## The demo (`frontend/index.html`)
 
 Four acts, keyboard-stepped, on the paper palette: **the recipe** (real extraction
 pairs, cycled, plus the difference-of-means formula), **the model obeys** (live
 paired generation), **where the decision forms** (`/api/scan`: alignment with r̂
 across every block and token, your prompt beside a fixed benign reference), then
-**why** (the real activations in 3D, rotatable). Design and build notes in
-`docs/superpowers/`.
+**why** (the real activations in 3D, rotatable).
 
 The recipe leads deliberately. Without it the audience meets an ablate/inject
 slider with no idea what it removes, and the flip reads as a jailbreak trick
@@ -255,9 +247,12 @@ Two things that look like polish but are load-bearing:
 
 These are load-bearing for the demo's credibility. Don't quietly drop them.
 
-- Layer 1 states on the page that it is a toy, names the dimensionality gap
-  (3 vs. thousands), and claims math parity with Layer 2 — all three are
-  asserted by the self-test, so deleting the text fails the check.
+- Everything on screen is measured. No synthetic points anywhere. The cloud is
+  cached extraction activations, the scan is one live forward pass, the marked
+  point is the user's own prompt. If something ever has to be illustrative
+  rather than measured, it must be visually distinct from a measurement and say
+  so — an early draft moved a *fabricated* point and drew it exactly like a real
+  one, which is the specific mistake to avoid.
 - The refusal matcher is a crude substring test with false positives and
   negatives. Report **effect sizes**, never absolute rates as ground truth, and
   run `spot_check` at least once per model. It carries a condemnation-register
@@ -271,9 +266,13 @@ These are load-bearing for the demo's credibility. Don't quietly drop them.
 - If `--screen` restricts the held-out harmful set, the unscreened rate is
   printed anyway and the restriction is recorded in the output. Screening is a
   disclosed selection, never a hidden one.
-- Layer 1's ablated cloud collapses to a 2D *plane*, not a line; it only looks
-  like a line because the camera angle showing r̂ at full length necessarily
-  puts the eye in that plane. The page says so.
+- The ablated cloud collapses to a 2D *plane*, not a line; it only looks like a
+  line from the angle that shows r̂ at full length, because that angle
+  necessarily puts the eye in the plane. Dragging it opens back up, which is why
+  rotation is presenter-controlled rather than on a timer.
+- The scan slide's opacity is not linear in the cosine it plots — there is a
+  gamma for legibility, and a fixed cap. Fine for comparing two panels, wrong
+  for reading values off. Said on the slide.
 
 ---
 
@@ -322,18 +321,21 @@ a shrug. A short perplexity comparison on neutral text, or a handful of
 capability probes (arithmetic, a summarisation, a code snippet) at α=0 vs α=−1,
 would close it cheaply. Highest-value single addition by a distance.
 
+**Blog / write-up.** The cloud needs no model at runtime — it is 80 points × 3
+coordinates, and the scan is ~3k floats. Baking those into a copy of
+`index.html` with the `fetch` calls replaced by inline constants would give a
+self-contained, offline, blog-embeddable interactive **on real data**, which is
+strictly better than the synthetic toy that used to serve that purpose. Only the
+live generation needs the server, and a write-up is better served by the recorded
+before/after text anyway. Roughly an hour.
+
 **UI / demo feel**
-- No paired A/B run. Comparing baseline against ablated means reading two
-  stacked cards; one button that runs both conditions and shows them
-  side by side would land the point far faster than the current stack.
-- The projection chart shows one generation at a time. Overlaying the baseline
-  curve for the same prompt would show the divergence directly instead of
-  leaving the viewer to remember the previous shape.
 - No way to cancel an in-flight generation — on a slow model that is a real
   irritation.
-- Layer 1 and Layer 2 are joined only by a text link. A shared header would make
-  them read as one piece rather than two pages.
-- Layer 1 works with touch pointer events but has had no real tablet testing.
+- The per-token projection chart died with `live.html`. If it is ever wanted
+  back, it belongs as an optional panel on the scan slide, not a separate page.
+- The cloud uses pointer events so touch drag works, but it has had no real
+  tablet testing.
 
 **Engineering**
 - `check_causal` reloads the model on every invocation, which dominates sweep

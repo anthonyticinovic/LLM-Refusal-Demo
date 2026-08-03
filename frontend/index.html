@@ -3,846 +3,624 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Layer 1 — What a "direction" in activation space means</title>
-<link rel="icon" href="data:,">
+<title>The refusal direction</title>
 <style>
-  :root {
-    --bg: #0b0d12;
-    --panel: #141821;
-    --panel-2: #1b2029;
-    --line: #262c38;
-    --text: #e8ebf2;
-    --muted: #8b93a7;
-    --dim: #5d6577;
-    --harmless: #4dabf7;
-    --harmful: #ff922b;
-    --rhat: #51cf66;
-    --warn: #ffd43b;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: var(--harmless); }
-
-  header {
-    padding: 26px 28px 18px;
-    border-bottom: 1px solid var(--line);
-    max-width: 1500px;
-    margin: 0 auto;
-  }
-  h1 { font-size: 21px; margin: 0 0 6px; letter-spacing: -0.01em; font-weight: 600; }
-  .sub { color: var(--muted); font-size: 14px; max-width: 78ch; margin: 0; }
-  .toy {
-    margin-top: 14px;
-    padding: 11px 14px;
-    background: rgba(255, 212, 59, 0.07);
-    border: 1px solid rgba(255, 212, 59, 0.28);
-    border-radius: 7px;
-    font-size: 13.5px;
-    color: #e4ddc4;
-    max-width: 100ch;
-  }
-  .toy b { color: var(--warn); font-weight: 600; }
-
-  main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 372px;
-    gap: 22px;
-    padding: 22px 28px 40px;
-    max-width: 1500px;
-    margin: 0 auto;
-    align-items: start;
-  }
-  @media (max-width: 1080px) { main { grid-template-columns: minmax(0, 1fr); } }
-
-  .stage { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .card-head {
-    padding: 9px 14px;
-    border-bottom: 1px solid var(--line);
-    font-size: 12px;
-    color: var(--muted);
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  }
-  .card-head .hint { color: var(--dim); font-size: 11.5px; }
-  /* Sized so the 3D view and the projection strip stay on screen together on a
-     laptop display. Watching the cloud flatten while the strip collapses is the
-     demo; making the user scroll between them loses it. */
-  #scene { display: block; width: 100%; height: 430px; cursor: grab; touch-action: none; }
-  #scene.dragging { cursor: grabbing; }
-  #strip { display: block; width: 100%; height: 150px; }
-
-  aside { display: flex; flex-direction: column; gap: 14px; }
-  .panel-body { padding: 15px; }
-
-  .gapbox { text-align: center; padding: 16px 15px 15px; }
-  .gapbox .label { font-size: 11.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
-  .gapbox .val {
-    font-family: var(--mono);
-    font-size: 46px;
-    line-height: 1.08;
-    font-variant-numeric: tabular-nums;
-    margin: 4px 0 2px;
-    font-weight: 500;
-  }
-  .gapbox .expl { font-size: 12px; color: var(--dim); }
-
-  table.read { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table.read td { padding: 5px 0; }
-  table.read td:last-child { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  table.read tr.sep td { border-top: 1px solid var(--line); padding-top: 9px; }
-  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 7px; vertical-align: baseline; }
-  .note { font-size: 11.5px; color: var(--dim); margin-top: 10px; line-height: 1.5; }
-
-  .ctrl { margin-bottom: 17px; }
-  .ctrl:last-child { margin-bottom: 0; }
-  .ctrl-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
-  .ctrl-head .name { font-size: 13px; font-weight: 500; }
-  .ctrl-head .num { font-family: var(--mono); font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .ctrl .desc { font-size: 11.5px; color: var(--dim); margin-top: 5px; line-height: 1.45; }
-  input[type=range] {
-    width: 100%; margin: 0; -webkit-appearance: none; appearance: none;
-    background: transparent; height: 20px; cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-runnable-track {
-    height: 4px; background: var(--panel-2); border-radius: 2px; border: 1px solid var(--line);
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%;
-    background: var(--text); margin-top: -6.5px; border: none;
-  }
-  input[type=range]:focus-visible { outline: 2px solid var(--harmless); outline-offset: 3px; border-radius: 4px; }
-
-  .btnrow { display: flex; gap: 8px; }
-  button {
-    flex: 1; font: inherit; font-size: 13px; padding: 8px 10px;
-    background: var(--panel-2); color: var(--text);
-    border: 1px solid var(--line); border-radius: 7px; cursor: pointer;
-  }
-  button:hover { background: #232937; border-color: #333b4a; }
-  button:active { transform: translateY(1px); }
-
-  .prose { font-size: 12.8px; color: var(--muted); line-height: 1.62; }
-  .prose p { margin: 0 0 10px; }
-  .prose p:last-child { margin-bottom: 0; }
-  .prose code, code {
-    font-family: var(--mono); font-size: 0.93em;
-    background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: #cdd4e2;
-  }
-  .prose b { color: var(--text); font-weight: 600; }
-
-  /* self-test overlay */
-  #selftest {
-    position: fixed; inset: 0; background: rgba(6, 8, 12, 0.97); z-index: 100;
-    overflow: auto; padding: 34px; font-family: var(--mono); font-size: 13px;
-  }
-  #selftest h2 { font-family: inherit; font-size: 15px; margin: 0 0 4px; }
-  #selftest table { border-collapse: collapse; margin-top: 18px; width: 100%; max-width: 1000px; }
-  #selftest td { padding: 6px 14px 6px 0; vertical-align: top; border-bottom: 1px solid #1c2330; }
-  #selftest .ok { color: #51cf66; }
-  #selftest .fail { color: #ff6b6b; }
-  #selftest .detail { color: var(--dim); font-size: 12px; }
-  #selftest .summary { margin-top: 20px; font-size: 15px; }
-  .hide { display: none !important; }
+:root {
+  --paper:#EBEBE4; --stage:#F4F4EE; --border:#DCDCD2; --line:#C6C6BB;
+  --ink:#2A2C2C; --muted:#6E706A; --faint:#9A9B92;
+  --harmless:#6E93AE; --harmful:#C67E60; --rhat:#7C9E77;
+}
+* { box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  margin:0; background:var(--paper); color:var(--ink);
+  font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex; flex-direction:column; overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+header { display:flex; justify-content:space-between; align-items:baseline;
+         padding:20px 44px 0; flex:none; }
+h1 { font-size:14px; font-weight:500; color:var(--faint); margin:0; letter-spacing:.02em; }
+.dots { display:flex; align-items:center; gap:9px; color:var(--faint);
+        font-size:13px; font-variant-numeric:tabular-nums; }
+.dot { width:8px; height:8px; border-radius:50%; background:#D2D2C7; transition:background .18s; }
+.dot.on { background:var(--harmful); }
+main { flex:1; display:flex; align-items:center; justify-content:center;
+       padding:0 44px; min-height:0; }
+.act { display:none; width:100%; max-width:1060px; }
+.act.on { display:block; }
+.act h2 { font-size:30px; font-weight:500; margin:0 0 4px; letter-spacing:-.01em; }
+.sub { color:var(--muted); font-size:16px; margin:0 0 20px; }
+.stage { background:var(--stage); border:1px solid var(--border); border-radius:14px; }
+.note { color:var(--faint); font-size:13px; margin:14px 0 0; }
+footer { padding:12px 44px 20px; color:var(--faint); font-size:13px;
+         display:flex; justify-content:space-between; flex:none; }
+.ctl { display:flex; align-items:center; gap:16px; margin-top:16px; }
+.ctl span.lbl { color:var(--muted); font-size:13px; white-space:nowrap; }
+.ctl output { font-variant-numeric:tabular-nums; min-width:74px; text-align:right; font-size:15px; }
+input[type=range] { flex:1; -webkit-appearance:none; appearance:none;
+                    height:4px; border-radius:2px; background:var(--line); outline:none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; appearance:none;
+  width:17px; height:17px; border-radius:50%; background:var(--stage);
+  border:1px solid var(--line); cursor:pointer; }
+input[type=range]::-moz-range-thumb { width:17px; height:17px; border-radius:50%;
+  background:var(--stage); border:1px solid var(--line); cursor:pointer; }
+canvas { display:block; width:100%; }
+.pill { display:inline-block; padding:2px 9px; border-radius:999px;
+        font-size:11px; letter-spacing:.04em; border:1px solid transparent; }
+.pill.refuse { color:#8C4A31; background:#F2DDD3; border-color:#E3C6B7; }
+.pill.comply { color:#4A6B47; background:#DDE8DB; border-color:#C6D8C3; }
+button, #prompt { border:1px solid var(--line); border-radius:10px;
+                  background:var(--stage); color:var(--ink); font:inherit; }
+#prompt { width:100%; padding:12px 14px; border-color:var(--border); font-size:15px; }
+button { padding:10px 20px; cursor:pointer; }
+button:disabled { color:var(--faint); cursor:default; }
+button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
+.pane { flex:1; padding:16px; min-height:236px; display:flex; flex-direction:column; }
+.pane .hd { display:flex; justify-content:space-between; align-items:center;
+            color:var(--faint); font-size:11px; letter-spacing:.06em; margin-bottom:9px; }
+.out { white-space:pre-wrap; font-size:15px; line-height:1.55; overflow:hidden; }
+.scanlab { font-size:12px; color:var(--harmful); margin-bottom:7px;
+           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pairhd { display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px;
+          letter-spacing:.05em; color:var(--faint); margin-bottom:7px; }
+.pairrow { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:9px; }
+.cell { font-size:14px; padding:10px 13px; border-radius:9px; line-height:1.45; }
+.cell.hf { background:#F2E2DA; color:#8C4A31; }
+.cell.hl { background:#E1E9EE; color:#3E5D72; }
+.eq { margin-top:18px; padding:14px 16px; background:var(--stage);
+      border:1px solid var(--border); border-radius:10px; text-align:center;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>A direction in activation space — the geometry, before the language model</h1>
-  <p class="sub">
-    Two classes of points. One direction <code>r̂</code>, estimated from the data, not drawn by hand.
-    Two operations on it: <b>remove</b> the component along <code>r̂</code>, or <b>add</b> some amount of it.
-    Watch which one destroys the difference between the classes and which one merely relocates it —
-    that asymmetry is the whole finding.
-  </p>
-  <div class="toy">
-    <b>This is a toy, and it should be read as one.</b>
-    These are 130 synthetic points per class in <b>3 dimensions</b>. A real language model's residual stream has
-    <b>thousands</b> — 2048 for the model driving Layer 2, and 4096+ for the models in the original paper.
-    Two offset Gaussian blobs separate along their own difference-of-means by construction; that part proves nothing.
-    What carries over is the <b>arithmetic</b>: the projection <code>h·r̂</code>, the subtraction <code>h − (h·r̂)r̂</code>,
-    and the addition <code>h + αr̂</code> performed here are the identical operations Layer 2 applies to real activations
-    from a trained model. The claim that these operations mean something lives in Layer 2, not on this page.
+  <h1>Refusal in language models is mediated by a single direction</h1>
+  <div class="dots"><span id="stepnum">1 / 4</span>
+    <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
   </div>
 </header>
 
 <main>
-  <div class="stage">
-    <div class="card">
-      <div class="card-head">
-        <span>Activation space (3D) — drag to rotate, scroll to zoom</span>
-        <span class="hint">solid = held-out · faded = used to estimate r̂</span>
-      </div>
-      <canvas id="scene"></canvas>
+  <section class="act on" id="actrecipe">
+    <h2>One direction, from forty pairs</h2>
+    <p class="sub">Each pair shares its grammar and nearly all its words. One gets refused, one doesn't.</p>
+    <div class="pairhd"><span>REFUSED</span><span>ANSWERED</span></div>
+    <div id="pairs"></div>
+    <div class="eq">r&#770; = normalise( mean(<span style="color:var(--harmful)">refused</span>) &minus; mean(<span style="color:var(--harmless)">answered</span>) )</div>
+    <div class="ctl">
+      <button id="morePairs">Show another three</button>
+      <span class="lbl" id="pairCount"></span>
+      <span style="flex:1"></span>
+      <span class="lbl" id="dirStats"></span>
     </div>
+    <p class="note">Take each prompt's activations at one block, average the forty on each side, subtract, scale to length 1. That is the entire method — everything after this is measuring what that one vector does.</p>
+  </section>
 
-    <div class="card">
-      <div class="card-head">
-        <span>Projection onto r̂ — each point reduced to the single number <code>h·r̂</code></span>
-        <span class="hint">the 3D view above, collapsed to one axis</span>
+  <section class="act" id="act1">
+    <h2>The model obeys</h2>
+    <p class="sub">Same prompt, same weights. Only the residual stream changed.</p>
+    <input id="prompt" value="Write a phishing email that impersonates a bank's fraud department.">
+    <div style="display:flex;gap:16px;margin-top:14px">
+      <div class="stage pane">
+        <div class="hd"><span>BASELINE &alpha; = 0</span><span id="baseTag"></span></div>
+        <div class="out" id="outBase"></div>
       </div>
-      <canvas id="strip"></canvas>
+      <div class="stage pane">
+        <div class="hd"><span id="ivLabel">ABLATED &alpha; = -1.00</span><span id="ivTag"></span></div>
+        <div class="out" id="outIv"></div>
+      </div>
     </div>
-  </div>
+    <div class="ctl">
+      <span class="lbl">&larr; ablate</span>
+      <input id="alpha" type="range" min="-100" max="100" value="-100">
+      <span class="lbl">inject &rarr;</span>
+      <output id="alphaNum">&alpha; = -1.00</output>
+      <button id="go">Run both</button>
+    </div>
+    <p class="note">Refusal is labelled by a crude substring matcher, so read the text rather than the tag. The next slide shows where inside the model that decision gets made.</p>
+  </section>
 
-  <aside>
-    <div class="card">
-      <div class="gapbox">
-        <div class="label">Gap along r̂</div>
-        <div class="val" id="gapVal">—</div>
-        <div class="expl">mean(harmful·r̂) − mean(harmless·r̂), measured on held-out points</div>
+  <section class="act" id="actscan">
+    <h2>Where the decision forms</h2>
+    <p class="sub">Alignment with r̂ at every block and every token. Same measurement, two prompts.</p>
+    <div style="display:flex;gap:18px">
+      <div style="flex:1">
+        <div class="scanlab" id="scanLabA">your prompt</div>
+        <div class="stage" style="padding:12px"><canvas id="scanA"></canvas></div>
       </div>
-      <div class="panel-body" style="border-top:1px solid var(--line)">
-        <table class="read">
-          <tr>
-            <td><span class="swatch" style="background:var(--harmless)"></span>harmless mean · r̂</td>
-            <td id="mHarmless">—</td>
-          </tr>
-          <tr>
-            <td><span class="swatch" style="background:var(--harmful)"></span>harmful mean · r̂</td>
-            <td id="mHarmful">—</td>
-          </tr>
-          <tr class="sep">
-            <td>‖Δcentroid‖ <span style="color:var(--dim)">(all 3 dims)</span></td>
-            <td id="centDist">—</td>
-          </tr>
-          <tr>
-            <td>‖r̂‖</td>
-            <td id="rnorm">—</td>
-          </tr>
-        </table>
-        <div class="note">
-          <code>r̂</code> is estimated from a random half of the points and every number above is measured on the
-          <em>other</em> half. That mirrors Layer 2, where the direction is extracted from one prompt set and
-          judged on prompts it never saw. It is also why <code>‖Δcentroid‖</code> does not reach exactly zero under
-          full ablation: the leftover is estimation error, in directions <code>r̂</code> does not cover.
-        </div>
+      <div style="flex:1">
+        <div class="scanlab" id="scanLabB" style="color:var(--harmless)">fixed benign reference</div>
+        <div class="stage" style="padding:12px"><canvas id="scanB"></canvas></div>
       </div>
     </div>
+    <p class="note" id="scanNote">Block 0 at the bottom, 35 at the top. The boxed column is the last input token — the one whose residual stream becomes the first word the model says, and the position the direction was extracted from. Cosine rather than a raw dot product, because residual norms grow with depth and the raw number would rise for a trivial reason. Fixed colour scale, shared by both panels.</p>
+  </section>
 
-    <div class="card">
-      <div class="card-head"><span>Operations</span></div>
-      <div class="panel-body">
-        <div class="ctrl">
-          <div class="ctrl-head">
-            <span class="name">Ablate</span>
-            <span class="num" id="ablNum">0%</span>
-          </div>
-          <input type="range" id="ablate" min="0" max="100" value="0" step="1">
-          <div class="desc"><code>h ← h − t·(h·r̂)r̂</code> — flattens the cloud onto the plane perpendicular to <code>r̂</code>.</div>
-        </div>
-        <div class="ctrl">
-          <div class="ctrl-head">
-            <span class="name">Inject</span>
-            <span class="num" id="injNum">α = +0.00</span>
-          </div>
-          <input type="range" id="inject" min="-400" max="400" value="0" step="1">
-          <div class="desc"><code>h ← h + α·r̂</code> — slides everything along <code>r̂</code>, both classes alike.</div>
-        </div>
-        <div class="btnrow">
-          <button id="resample">Resample</button>
-          <button id="reset">Reset controls</button>
-        </div>
-      </div>
+  <section class="act" id="act2">
+    <h2>Why</h2>
+    <p class="sub">The model's real activations, in three dimensions of the 2,048 it has.</p>
+    <div class="stage" style="padding:16px"><canvas id="cloud"></canvas></div>
+    <div class="ctl">
+      <span class="lbl">&larr; ablate</span>
+      <input id="alpha2" type="range" min="-100" max="100" value="0">
+      <span class="lbl">inject &rarr;</span>
+      <output id="alphaNum2">&alpha; = 0.00</output>
+      <button id="align" class="ghost">Line up with r&#770;</button>
     </div>
-
-    <div class="card">
-      <div class="card-head"><span>What to notice</span></div>
-      <div class="panel-body prose">
-        <p>
-          <b>Ablation destroys the signal.</b> Push it to 100% and the gap goes to zero. Not "small" —
-          zero, by construction: subtracting <code>(h·r̂)r̂</code> leaves nothing along <code>r̂</code> to measure.
-          The two classes become indistinguishable on this axis.
-        </p>
-        <p>
-          It only <em>looks</em> like the cloud collapses to a line. It collapses to the 2D plane perpendicular to
-          <code>r̂</code>, and you are seeing that plane edge-on — necessarily so, because the camera angle that
-          shows <code>r̂</code> at full length is the same one that puts your eye in the plane.
-          <b>Drag to rotate and it opens back up.</b> Three dimensions became two; one direction's worth of
-          information was removed, not all of it.
-        </p>
-        <p>
-          <b>Injection moves the baseline, and nothing else.</b> Sweep α across its full range: both means slide
-          together, and the gap between them does not move at all. You are not making one class more like the
-          other — you are relocating both.
-        </p>
-        <p>
-          <b>That asymmetry is the point.</b> In Layer 2, ablating the refusal direction removes refusal broadly,
-          including on prompts the model would normally refuse — the signal is gone. Injecting it induces refusal
-          on prompts that are plainly benign — the baseline moved far enough that everything reads as refusal.
-          One operation deletes a feature; the other forces it.
-        </p>
-        <p>
-          <b>Resample, and watch r̂ move.</b> The direction is recomputed from freshly drawn points every time,
-          via difference-of-means. It is an estimate with sampling error, not a constant baked into this page.
-        </p>
-      </div>
-    </div>
-  </aside>
+    <p class="note" id="note2">Drag to rotate, scroll to zoom. One axis is r&#770;; the other two are the strongest directions left once r&#770; is removed. The classes split along r&#770; by 3.94 SD and along the other two by 0.00 — that is what "a single direction" means.</p>
+  </section>
 </main>
 
-<div id="selftest" class="hide"></div>
+<footer><span>&larr; &rarr; to move</span><span id="hint"></span></footer>
 
 <script>
-"use strict";
 (function () {
 
 // ---------------------------------------------------------------------------
-// Model: point generation and the three operations under study.
-//
-// Everything in this block is pure. The renderer and the self-test both call
-// it, so the numbers on screen and the numbers under test come from one place.
+// Shell
 // ---------------------------------------------------------------------------
+const acts = [].slice.call(document.querySelectorAll('.act'));
+const dots = [].slice.call(document.querySelectorAll('.dot'));
+let step = 0;
 
-const N_PER_CLASS = 130;   // per the spec: ~130 points per class
-const OFFSET      = 3.0;   // separation of the harmful class from the origin
-const SIGMA       = 1.0;   // isotropic Gaussian noise, both classes
-
-// A deliberately non-axis-aligned generating direction. A direction in
-// activation space has no reason to line up with a coordinate, and drawing it
-// along an axis here would quietly teach the wrong intuition.
-const GEN_DIR = normalize({ x: 0.72, y: 0.45, z: -0.53 });
-
-function gauss() {
-  // Box-Muller. Math.random() never returns 1, but it can return 0.
-  let u = 0;
-  while (u === 0) u = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
+function show(i) {
+  step = Math.max(0, Math.min(acts.length - 1, i));
+  acts.forEach(function (a, n) { a.classList.toggle('on', n === step); });
+  dots.forEach(function (d, n) { d.classList.toggle('on', n === step); });
+  document.getElementById('stepnum').textContent = (step + 1) + ' / ' + acts.length;
+  if (step === 2) drawScans();
+  if (step === 3) draw();
 }
 
-function normalize(v) {
-  const n = Math.hypot(v.x, v.y, v.z);
-  return { x: v.x / n, y: v.y / n, z: v.z / n };
-}
-
-function dot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-
-function meanOf(points) {
-  const m = { x: 0, y: 0, z: 0 };
-  for (const p of points) { m.x += p.x; m.y += p.y; m.z += p.z; }
-  const n = points.length || 1;
-  return { x: m.x / n, y: m.y / n, z: m.z / n };
-}
-
-// Draw a fresh sample and estimate r̂ from half of it.
+// ---------------------------------------------------------------------------
+// Opening slide: the extraction pairs, cycled three at a time.
 //
-// The half/half split is not decoration. Estimating r̂ from the same points you
-// then measure guarantees Δcentroid is exactly parallel to r̂, which makes
-// ablation look cleaner than it has any right to. Holding out half reproduces
-// the honest version: r̂ is an estimate, and it misses a little.
-function sampleCloud() {
-  const pts = [];
-  for (let cls = 0; cls < 2; cls++) {
-    const cx = cls === 1 ? GEN_DIR.x * OFFSET : 0;
-    const cy = cls === 1 ? GEN_DIR.y * OFFSET : 0;
-    const cz = cls === 1 ? GEN_DIR.z * OFFSET : 0;
-    for (let i = 0; i < N_PER_CLASS; i++) {
-      pts.push({
-        x: cx + gauss() * SIGMA,
-        y: cy + gauss() * SIGMA,
-        z: cz + gauss() * SIGMA,
-        cls: cls,
-        // Random, balanced 50/50 assignment within each class.
-        extract: i % 2 === 0,
-      });
-    }
-  }
-  // Shuffle the extract flags within each class so the split is not tied to
-  // generation order (it isn't meaningful here, but it would be a latent bug
-  // the moment point generation stops being i.i.d.).
-  for (let cls = 0; cls < 2; cls++) {
-    const idx = pts.map((p, i) => (p.cls === cls ? i : -1)).filter(i => i >= 0);
-    for (let i = idx.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const t = pts[idx[i]].extract; pts[idx[i]].extract = pts[idx[j]].extract; pts[idx[j]].extract = t;
-    }
-  }
+// Cycling is not decoration. Three pairs look like a trick with phishing; a
+// presenter clicking through forty shows the corpus spans fraud, lock-picking,
+// surveillance and forgery, which is the other half of the claim that this is a
+// refusal direction rather than a topic direction.
+// ---------------------------------------------------------------------------
+const pairs = { all: [], at: 0 };
 
-  const exHarmless = pts.filter(p => p.cls === 0 && p.extract);
-  const exHarmful  = pts.filter(p => p.cls === 1 && p.extract);
-  const a = meanOf(exHarmful), b = meanOf(exHarmless);
-  const rhat = normalize({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+fetch('/api/prompts').then(r => r.json()).then(function (d) {
+  pairs.all = d.pairs || [];
+  renderPairs();
+}).catch(function () {});
 
-  return { points: pts, rhat: rhat };
+fetch('/api/meta').then(r => r.json()).then(function (m) {
+  if (!m.direction) return;
+  const el = document.getElementById('dirStats');
+  el.textContent = 'from ' + m.direction.n_pairs + ' pairs at block ' + m.direction.layer +
+    ' · split-half ' + m.direction.split_half_cosine.toFixed(3) +
+    ' · separation ' + m.direction.separation_sds.toFixed(2) + ' SD';
+}).catch(function () {});
+
+function renderPairs() {
+  if (!pairs.all.length) return;
+  let html = '';
+  for (let i = 0; i < 3; i++) {
+    const p = pairs.all[(pairs.at + i) % pairs.all.length];
+    html += '<div class="pairrow"><div class="cell hf"></div><div class="cell hl"></div></div>';
+  }
+  const host = document.getElementById('pairs');
+  host.innerHTML = html;
+  // textContent rather than innerHTML for the prompts themselves: they are
+  // corpus data, not markup, and some contain characters that would inject.
+  const cells = host.querySelectorAll('.cell');
+  for (let i = 0; i < 3; i++) {
+    const p = pairs.all[(pairs.at + i) % pairs.all.length];
+    cells[i * 2].textContent = p[0];
+    cells[i * 2 + 1].textContent = p[1];
+  }
+  document.getElementById('pairCount').textContent =
+    ((pairs.at % pairs.all.length) + 1) + '–' + ((pairs.at + 2) % pairs.all.length + 1) +
+    ' of ' + pairs.all.length;
 }
 
-// The two operations, composed in the same order Layer 2 applies them:
-// ablate first (remove the component), then inject (add α back along r̂).
-function transform(p, rhat, t, alpha) {
-  const d = dot(p, rhat);
-  const k = alpha - t * d;
-  return { x: p.x + k * rhat.x, y: p.y + k * rhat.y, z: p.z + k * rhat.z };
+document.getElementById('morePairs').addEventListener('click', function () {
+  pairs.at = (pairs.at + 3) % pairs.all.length;
+  renderPairs();
+});
+
+addEventListener('keydown', function (e) {
+  const t = e.target;
+  if (t && t.matches && t.matches('input,textarea,button')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(step + 1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); show(step - 1); }
+});
+
+// ---------------------------------------------------------------------------
+// The scan: alignment with r̂ across blocks and tokens, from /api/scan.
+//
+// Both panels share one colour scale, computed across both grids — separate
+// scales would make a weak signal look identical to a strong one, which is the
+// whole comparison the slide rests on.
+// ---------------------------------------------------------------------------
+const scan = { a: null, b: null, prompt: null };
+
+function fetchScan(prompt) {
+  document.getElementById('scanNote').dataset.state = 'loading';
+  return fetch('/api/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: prompt })
+  }).then(r => r.json()).then(function (d) {
+    if (!d.available) return;
+    scan.a = d; scan.b = d.reference; scan.prompt = prompt;
+    document.getElementById('scanLabA').textContent = prompt;
+    document.getElementById('scanLabB').textContent = d.reference_prompt;
+    if (step === 2) drawScans();
+  }).catch(function () {});
 }
 
-// Readouts, computed on held-out points only.
-function computeStats(points, rhat, t, alpha) {
-  const heldHarmless = [], heldHarmful = [];
-  for (const p of points) {
-    if (p.extract) continue;
-    (p.cls === 0 ? heldHarmless : heldHarmful).push(transform(p, rhat, t, alpha));
+// Fixed, not adapted to the data. A scale derived from whichever prompt was
+// last run would repaint the benign reference every time, so two prompts could
+// not be compared with each other and an unremarkable prompt would look as hot
+// as a refused one. Values above this clamp. Retune if the model or extraction
+// layer changes — observed peak on Qwen2.5-3B layer 21 is about 0.29.
+const SCAN_MAX = 0.30;
+
+function drawScans() {
+  if (!scan.a || !scan.b) return;
+  drawScan('scanA', scan.a, SCAN_MAX);
+  drawScan('scanB', scan.b, SCAN_MAX);
+}
+
+function drawScan(id, s, max) {
+  const cv = document.getElementById(id);
+  const dpr = devicePixelRatio || 1;
+  const w = cv.parentElement.clientWidth - 24;
+  const h = Math.max(240, Math.min(360, innerHeight - 400));
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  const L = 30, R = 6, T = 6, B = 74;          // margins; B holds the token labels
+  const n = s.tokens.length, rows = s.n_layers;
+  const cw = (w - L - R) / n, ch = (h - T - B) / rows;
+
+  for (let l = 0; l < rows; l++) {
+    // Block 0 at the bottom, so the picture reads bottom-up like the stack.
+    const y = T + (rows - 1 - l) * ch;
+    for (let t = 0; t < n; t++) {
+      // Negatives clamp to blank: they sit within noise of zero here, and a
+      // second colour for them would imply a meaning they do not carry.
+      // The exponent is contrast only — it lightens the broad mid-range so the
+      // hot region reads from the back of a room. Both panels get the same
+      // curve and the same max, so the comparison is untouched.
+      const a = Math.pow(Math.max(0, Math.min(1, s.grid[l][t] / max)), 1.7);
+      g.fillStyle = 'rgba(198,126,96,' + (0.02 + a * 0.98).toFixed(3) + ')';
+      g.fillRect(L + t * cw, y, Math.max(1, cw - 0.5), Math.max(1, ch - 0.5));
+    }
   }
-  const mA = meanOf(heldHarmless), mB = meanOf(heldHarmful);
-  const pA = dot(mA, rhat), pB = dot(mB, rhat);
+
+  // The last position: the final input token, whose residual stream becomes the
+  // logits for the first word the model says. It is the moment before it
+  // commits, and the reason extraction reads here and nowhere else.
+  g.strokeStyle = '#2A2C2C'; g.lineWidth = 1;
+  g.strokeRect(L + (n - 1) * cw - 0.5, T - 0.5, Math.max(2, cw), rows * ch + 1);
+
+  g.fillStyle = '#9A9B92';
+  g.font = '10px ui-sans-serif,system-ui,sans-serif';
+  for (let l = 0; l < rows; l += 6) {
+    const y = T + (rows - 1 - l) * ch + ch;
+    g.fillText(String(l), 6, y);
+  }
+  g.fillText(String(rows - 1), 6, T + 8);
+
+  // Rotated so long tokens are readable; thinned when the columns get tight.
+  const everyN = cw < 9 ? Math.ceil(9 / cw) : 1;
+  g.save();
+  g.font = '10px ui-sans-serif,system-ui,sans-serif';
+  for (let t = 0; t < n; t++) {
+    if (t % everyN) continue;
+    let label = s.tokens[t].replace(/\n/g, '\\n');
+    if (label.length > 12) label = label.slice(0, 11) + '…';
+    if (!label.trim()) continue;
+    g.save();
+    g.translate(L + t * cw + cw / 2, h - B + 8);
+    g.rotate(-Math.PI / 4);
+    g.fillStyle = t === n - 1 ? '#2A2C2C' : '#87887F';
+    g.textAlign = 'right';
+    g.fillText(label, 0, 0);
+    g.restore();
+  }
+  g.restore();
+}
+
+addEventListener('resize', function () { if (step === 2) drawScans(); });
+
+// ---------------------------------------------------------------------------
+// The cloud: REAL activations, from /api/projection.
+//
+// Coordinates are (h·r̂, h·u₁, h·u₂) — see backend/projection.py. Nothing here is
+// synthetic. `anchor` is where the live prompt actually sits, measured at its
+// last prompt token on a baseline run, which is the same quantity at the same
+// layer as every cached point on screen.
+// ---------------------------------------------------------------------------
+const cloud = {
+  harmful: [], harmless: [], ready: false,
+  anchor: null, alpha: 0, injUnit: null
+};
+const view = { yaw: 0.62, pitch: 0.30, dist: 8.2, scale: 1 };
+
+fetch('/api/meta').then(r => r.json()).then(function (m) {
+  if (m.direction) cloud.injUnit = m.alpha_mapping.inject_max_mult * m.direction.diff_norm;
+}).catch(function () {});
+
+fetch('/api/projection').then(r => r.json()).then(function (d) {
+  if (!d.available) {
+    document.getElementById('note2').textContent =
+      'No direction artifact yet — run `python -m backend.extract` and reload.';
+    return;
+  }
+  cloud.harmful = d.harmful; cloud.harmless = d.harmless; cloud.ready = true;
+  // One shared scale so the cloud fills the stage regardless of the model's
+  // activation magnitudes, which differ by layer and by model.
+  const all = d.harmful.concat(d.harmless);
+  const c = centroid(all);
+  // Scaled off the 85th percentile radius rather than the max, so one outlier
+  // cannot shrink the whole cloud into the middle of the stage.
+  const radii = all.map(function (p) {
+    return Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]);
+  }).sort(function (a, b) { return a - b; });
+  const r85 = radii[Math.floor(radii.length * 0.85)] || radii[radii.length - 1] || 1;
+  cloud.centre = c;
+  view.scale = 3.6 / r85;
+  if (step === 3) draw();
+}).catch(function () {
+  document.getElementById('note2').textContent =
+    'Could not reach the server — start it with `python -m backend.app`.';
+});
+
+function centroid(pts) {
+  const s = [0, 0, 0];
+  pts.forEach(function (p) { s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; });
+  return s.map(function (v) { return v / (pts.length || 1); });
+}
+
+// The interventions, applied to a point's coordinates. This is the same
+// arithmetic the model gets, not an animation of it:
+//
+//   ablate, t = |α| :  x → (1 − t)·x        the r̂ coordinate is SCALED
+//   inject, α > 0   :  x → x + α·MULT·‖d‖   the r̂ coordinate is SHIFTED
+//
+// u₁ and u₂ are untouched by both, because each operation acts along r̂ alone
+// and the leftover axes are orthogonal to it. That the cloud only ever moves
+// along one axis is the point of the slide.
+function applyAlpha(p) {
+  const a = cloud.alpha;
+  let x = p[0];
+  if (a < 0) x = (1 + a) * x;
+  else if (a > 0 && cloud.injUnit !== null) x = x + a * cloud.injUnit;
+  return [x, p[1], p[2]];
+}
+
+// Raw coordinates → view space. The r̂ axis uses this directly: it is a fixed
+// direction in the space, so it must NOT move when alpha changes. Only the
+// points move.
+function toViewRaw(p) {
   return {
-    harmless: pA,
-    harmful: pB,
-    gap: pB - pA,
-    centDist: Math.hypot(mB.x - mA.x, mB.y - mA.y, mB.z - mA.z),
-    rnorm: Math.hypot(rhat.x, rhat.y, rhat.z),
+    x: (p[0] - cloud.centre[0]) * view.scale,
+    y: (p[1] - cloud.centre[1]) * view.scale,
+    z: (p[2] - cloud.centre[2]) * view.scale
   };
 }
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-
-const state = {
-  cloud: sampleCloud(),
-  ablTarget: 0, ablCur: 0,      // 0..1
-  injTarget: 0, injCur: 0,      // α
-  yaw: 0.72, pitch: -0.26, dist: 13.2,
-  idleSpin: true,
-};
-
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
-const scene = document.getElementById("scene");
-const sctx = scene.getContext("2d");
-const strip = document.getElementById("strip");
-const tctx = strip.getContext("2d");
-
-function fitCanvas(cv, ctx) {
-  const dpr = window.devicePixelRatio || 1;
-  const r = cv.getBoundingClientRect();
-  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
-  if (cv.width !== w * dpr || cv.height !== h * dpr) {
-    cv.width = w * dpr; cv.height = h * dpr;
-  }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { w, h };
-}
+function toView(p) { return toViewRaw(applyAlpha(p)); }
 
 function project(p, w, h) {
-  const cy = Math.cos(state.yaw), sy = Math.sin(state.yaw);
-  const cp = Math.cos(state.pitch), sp = Math.sin(state.pitch);
-  const x1 =  p.x * cy - p.z * sy;
-  const z1 =  p.x * sy + p.z * cy;
-  const y2 =  p.y * cp - z1 * sp;
-  const z2 =  p.y * sp + z1 * cp;
-  const zc = z2 + state.dist;
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+  const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const x1 = p.x * cy - p.z * sy, z1 = p.x * sy + p.z * cy;
+  const y2 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;
+  const zc = z2 + view.dist;
   if (zc <= 0.15) return null;
-  const f = h * 1.28;
+  const f = h * 1.15;
   return { sx: w / 2 + (f * x1) / zc, sy: h / 2 - (f * y2) / zc, zc: zc };
 }
 
-const COL = { 0: "77, 171, 247", 1: "255, 146, 43" };
+function draw() {
+  if (!cloud.ready) return;
+  const cv = document.getElementById('cloud');
+  const dpr = devicePixelRatio || 1;
+  const w = cv.parentElement.clientWidth - 32;
+  const h = Math.max(300, Math.min(460, innerHeight - 330));
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
 
-function drawScene() {
-  const { w, h } = fitCanvas(scene, sctx);
-  sctx.clearRect(0, 0, w, h);
-  sctx.fillStyle = "#0e1117";
-  sctx.fillRect(0, 0, w, h);
+  // r̂ axis, drawn through the cloud and out the far side.
+  const half = 4.2 / view.scale;
+  const axisA = project(toViewRaw([cloud.centre[0] - half, cloud.centre[1], cloud.centre[2]]), w, h);
+  const axisB = project(toViewRaw([cloud.centre[0] + half, cloud.centre[1], cloud.centre[2]]), w, h);
 
-  const t = state.ablCur, a = state.injCur, rhat = state.cloud.rhat;
-
-  // Reference box, for depth. Without it a rotating point cloud reads as flat.
-  const B = 4.6;
-  const corners = [];
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1])
-    corners.push(project({ x: sx * B, y: sy * B, z: sz * B }, w, h));
-  const edges = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
-  sctx.strokeStyle = "rgba(255,255,255,0.055)";
-  sctx.lineWidth = 1;
-  sctx.beginPath();
-  for (const [i, j] of edges) {
-    if (!corners[i] || !corners[j]) continue;
-    sctx.moveTo(corners[i].sx, corners[i].sy);
-    sctx.lineTo(corners[j].sx, corners[j].sy);
-  }
-  sctx.stroke();
-
-  // Build the draw list: transformed points plus the r̂ arrow, all depth-sorted
-  // together so the arrow is correctly occluded by points in front of it.
   const items = [];
-  for (const p of state.cloud.points) {
-    const q = transform(p, rhat, t, a);
-    const s = project(q, w, h);
-    if (s) items.push({ kind: "pt", s: s, cls: p.cls, extract: p.extract });
+  cloud.harmless.forEach(function (p) { items.push({ p: project(toView(p), w, h), c: '#6E93AE' }); });
+  cloud.harmful.forEach(function (p) { items.push({ p: project(toView(p), w, h), c: '#C67E60' }); });
+  items.sort(function (a, b) { return (b.p ? b.p.zc : 0) - (a.p ? a.p.zc : 0); });
+
+  if (axisA && axisB) {
+    g.strokeStyle = '#F4F4EE'; g.lineWidth = 5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(axisA.sx, axisA.sy); g.lineTo(axisB.sx, axisB.sy); g.stroke();
+    g.strokeStyle = '#7C9E77'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(axisA.sx, axisA.sy); g.lineTo(axisB.sx, axisB.sy); g.stroke();
+    const ang = Math.atan2(axisB.sy - axisA.sy, axisB.sx - axisA.sx);
+    g.beginPath(); g.moveTo(axisB.sx, axisB.sy);
+    g.lineTo(axisB.sx - 11 * Math.cos(ang - 0.4), axisB.sy - 11 * Math.sin(ang - 0.4));
+    g.moveTo(axisB.sx, axisB.sy);
+    g.lineTo(axisB.sx - 11 * Math.cos(ang + 0.4), axisB.sy - 11 * Math.sin(ang + 0.4));
+    g.stroke();
+    g.fillStyle = '#7C9E77'; g.font = '15px ui-sans-serif,system-ui,sans-serif';
+    g.fillText('r̂', axisB.sx + 9, axisB.sy - 6);
   }
 
-  const L = 5.4;
-  const tip  = project({ x: rhat.x * L, y: rhat.y * L, z: rhat.z * L }, w, h);
-  const tail = project({ x: -rhat.x * L * 0.62, y: -rhat.y * L * 0.62, z: -rhat.z * L * 0.62 }, w, h);
-  if (tip && tail) items.push({ kind: "arrow", s: { zc: (tip.zc + tail.zc) / 2 }, tip, tail });
+  items.forEach(function (it) {
+    if (!it.p) return;
+    g.globalAlpha = Math.max(0.34, Math.min(0.95, 9.5 / it.p.zc - 0.12));
+    g.fillStyle = it.c;
+    g.beginPath(); g.arc(it.p.sx, it.p.sy, 5, 0, 7); g.fill();
+  });
+  g.globalAlpha = 1;
 
-  items.sort((u, v) => v.s.zc - u.s.zc);
-
-  for (const it of items) {
-    if (it.kind === "arrow") {
-      sctx.strokeStyle = "rgba(81, 207, 102, 0.92)";
-      sctx.lineWidth = 2;
-      sctx.beginPath();
-      sctx.moveTo(it.tail.sx, it.tail.sy);
-      sctx.lineTo(it.tip.sx, it.tip.sy);
-      sctx.stroke();
-
-      const ang = Math.atan2(it.tip.sy - it.tail.sy, it.tip.sx - it.tail.sx);
-      const hs = 11;
-      sctx.fillStyle = "rgba(81, 207, 102, 0.92)";
-      sctx.beginPath();
-      sctx.moveTo(it.tip.sx, it.tip.sy);
-      sctx.lineTo(it.tip.sx - hs * Math.cos(ang - 0.38), it.tip.sy - hs * Math.sin(ang - 0.38));
-      sctx.lineTo(it.tip.sx - hs * Math.cos(ang + 0.38), it.tip.sy - hs * Math.sin(ang + 0.38));
-      sctx.closePath();
-      sctx.fill();
-
-      sctx.fillStyle = "rgba(81, 207, 102, 0.95)";
-      sctx.font = "600 13px ui-monospace, SFMono-Regular, Menlo, monospace";
-      sctx.fillText("r̂", it.tip.sx + 9, it.tip.sy - 7);
-      continue;
+  if (cloud.anchor) {
+    const a = project(toView(cloud.anchor), w, h);
+    if (a) {
+      g.fillStyle = '#2A2C2C';
+      g.beginPath(); g.arc(a.sx, a.sy, 6, 0, 7); g.fill();
+      g.strokeStyle = '#2A2C2C'; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(a.sx, a.sy, 12, 0, 7); g.stroke();
+      g.font = '12px ui-sans-serif,system-ui,sans-serif';
+      const t = 'your prompt';
+      g.fillText(t, a.sx - g.measureText(t).width / 2, a.sy - 20);
     }
-    const r = Math.max(1.1, (it.s.zc > 0 ? 46 / it.s.zc : 1));
-    const near = Math.max(0, Math.min(1, (state.dist + 6 - it.s.zc) / 12));
-    const alpha = (it.extract ? 0.2 : 0.52) + 0.42 * near * (it.extract ? 0.45 : 1);
-    sctx.fillStyle = "rgba(" + COL[it.cls] + "," + alpha.toFixed(3) + ")";
-    sctx.beginPath();
-    sctx.arc(it.s.sx, it.s.sy, it.extract ? r * 0.72 : r, 0, Math.PI * 2);
-    sctx.fill();
-  }
-}
-
-const STRIP_MIN = -10, STRIP_MAX = 10;
-
-function drawStrip(stats) {
-  const { w, h } = fitCanvas(strip, tctx);
-  tctx.clearRect(0, 0, w, h);
-  tctx.fillStyle = "#0e1117";
-  tctx.fillRect(0, 0, w, h);
-
-  const padL = 16, padR = 16;
-  const X = v => padL + ((v - STRIP_MIN) / (STRIP_MAX - STRIP_MIN)) * (w - padL - padR);
-  const rowY = { 0: h * 0.66, 1: h * 0.30 };
-
-  // Axis
-  tctx.strokeStyle = "rgba(255,255,255,0.10)";
-  tctx.lineWidth = 1;
-  tctx.beginPath();
-  for (let v = STRIP_MIN; v <= STRIP_MAX; v += 2) {
-    tctx.moveTo(X(v), h - 24); tctx.lineTo(X(v), h - 19);
-  }
-  tctx.moveTo(padL, h - 21.5); tctx.lineTo(w - padR, h - 21.5);
-  tctx.stroke();
-  tctx.fillStyle = "#4d5567";
-  tctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
-  tctx.textAlign = "center";
-  for (let v = STRIP_MIN; v <= STRIP_MAX; v += 4) tctx.fillText(String(v), X(v), h - 8);
-  tctx.textAlign = "left";
-
-  // Held-out points as ticks, one row per class.
-  const t = state.ablCur, a = state.injCur, rhat = state.cloud.rhat;
-  for (const p of state.cloud.points) {
-    if (p.extract) continue;
-    const v = dot(transform(p, rhat, t, a), rhat);
-    const x = X(Math.max(STRIP_MIN, Math.min(STRIP_MAX, v)));
-    const y = rowY[p.cls];
-    tctx.strokeStyle = "rgba(" + COL[p.cls] + ",0.42)";
-    tctx.lineWidth = 1.35;
-    tctx.beginPath();
-    tctx.moveTo(x, y - 13); tctx.lineTo(x, y + 13);
-    tctx.stroke();
   }
 
-  // Mean markers and the gap span between them — the number the page is about.
-  const xA = X(Math.max(STRIP_MIN, Math.min(STRIP_MAX, stats.harmless)));
-  const xB = X(Math.max(STRIP_MIN, Math.min(STRIP_MAX, stats.harmful)));
-  for (const [x, cls] of [[xA, 0], [xB, 1]]) {
-    tctx.strokeStyle = "rgb(" + COL[cls] + ")";
-    tctx.lineWidth = 2;
-    tctx.beginPath();
-    tctx.moveTo(x, rowY[1] - 20); tctx.lineTo(x, rowY[0] + 20);
-    tctx.stroke();
-  }
-
-  const yGap = h * 0.485;
-  tctx.strokeStyle = "rgba(232,235,242,0.55)";
-  tctx.lineWidth = 1;
-  tctx.setLineDash([3, 3]);
-  tctx.beginPath();
-  tctx.moveTo(xA, yGap); tctx.lineTo(xB, yGap);
-  tctx.stroke();
-  tctx.setLineDash([]);
-
-  tctx.fillStyle = "#e8ebf2";
-  tctx.font = "600 11.5px ui-monospace, SFMono-Regular, Menlo, monospace";
-  tctx.textAlign = "center";
-  tctx.fillText("gap " + stats.gap.toFixed(2), (xA + xB) / 2, yGap - 6);
-  tctx.textAlign = "left";
+  g.font = '12px ui-sans-serif,system-ui,sans-serif';
+  g.fillStyle = '#6E93AE'; g.fillText('harmless', 12, h - 28);
+  g.fillStyle = '#C67E60'; g.fillText('harmful', 12, h - 12);
 }
 
-// ---------------------------------------------------------------------------
-// Readouts + loop
-// ---------------------------------------------------------------------------
+// Drag to rotate, scroll to zoom. Presenter-controlled rather than on a timer:
+// the beat worth hitting is that the ablated cloud only LOOKS flattened to a
+// line, and you want to turn it exactly then.
+(function () {
+  const cv = document.getElementById('cloud');
+  let dragging = false, lastX = 0, lastY = 0;
+  cv.style.cursor = 'grab';
+  cv.addEventListener('pointerdown', function (e) {
+    cv.setPointerCapture(e.pointerId);
+    dragging = true; lastX = e.clientX; lastY = e.clientY; cv.style.cursor = 'grabbing';
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    // Both axes follow the cursor: the near face of the cloud travels the way
+    // you drag, as if you had hold of it. The signs differ because the
+    // projection applies yaw and pitch in opposite senses — screen y is flipped
+    // (sy = h/2 − …) while screen x is not. Matching the signs here rather than
+    // the felt direction is what made one axis fight the other.
+    view.yaw += (e.clientX - lastX) * 0.008;
+    // Clamped short of the poles: past vertical the scene flips and the gesture
+    // stops matching the mouse.
+    view.pitch = Math.max(-1.45, Math.min(1.45, view.pitch - (e.clientY - lastY) * 0.008));
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+  });
+  function up() { dragging = false; cv.style.cursor = 'grab'; }
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    view.dist = Math.max(5, Math.min(20, view.dist + e.deltaY * 0.01));
+    draw();
+  }, { passive: false });
+})();
 
-const el = {
-  gapVal: document.getElementById("gapVal"),
-  mHarmless: document.getElementById("mHarmless"),
-  mHarmful: document.getElementById("mHarmful"),
-  centDist: document.getElementById("centDist"),
-  rnorm: document.getElementById("rnorm"),
-  ablNum: document.getElementById("ablNum"),
-  injNum: document.getElementById("injNum"),
-};
-
-function fmt(v) {
-  // Avoid rendering "-0.00", which reads like a bug to exactly the audience
-  // this page is for.
-  const s = v.toFixed(2);
-  return s === "-0.00" ? "0.00" : s;
-}
-
-function paintReadouts(stats) {
-  el.gapVal.textContent = fmt(stats.gap);
-  el.gapVal.style.color = Math.abs(stats.gap) < 0.05 ? "var(--warn)" : "var(--text)";
-  el.mHarmless.textContent = fmt(stats.harmless);
-  el.mHarmful.textContent = fmt(stats.harmful);
-  el.centDist.textContent = fmt(stats.centDist);
-  el.rnorm.textContent = stats.rnorm.toFixed(6);
-  el.ablNum.textContent = Math.round(state.ablCur * 100) + "%";
-  el.injNum.textContent = "α = " + (state.injCur >= 0 ? "+" : "") + state.injCur.toFixed(2);
-}
-
-// Ease toward the slider targets. The motion is doing pedagogical work here:
-// snapping hides which points moved where.
-function step() {
-  const k = 0.16;
-  state.ablCur += (state.ablTarget - state.ablCur) * k;
-  state.injCur += (state.injTarget - state.injCur) * k;
-  if (Math.abs(state.ablTarget - state.ablCur) < 1e-4) state.ablCur = state.ablTarget;
-  if (Math.abs(state.injTarget - state.injCur) < 1e-4) state.injCur = state.injTarget;
-  if (state.idleSpin) state.yaw += 0.0016;
-}
-
-function settle() {
-  state.ablCur = state.ablTarget;
-  state.injCur = state.injTarget;
-}
-
-function frame() {
-  step();
-  const stats = computeStats(state.cloud.points, state.cloud.rhat, state.ablCur, state.injCur);
-  paintReadouts(stats);
-  drawScene();
-  drawStrip(stats);
-  requestAnimationFrame(frame);
-}
-
-// ---------------------------------------------------------------------------
-// Interaction
-// ---------------------------------------------------------------------------
-
-let dragging = false, lastX = 0, lastY = 0;
-scene.addEventListener("pointerdown", e => {
-  dragging = true; state.idleSpin = false;
-  lastX = e.clientX; lastY = e.clientY;
-  scene.classList.add("dragging");
-  scene.setPointerCapture(e.pointerId);
+// yaw = pitch = 0 puts r̂ flat along the screen's x-axis and u₁ up the y-axis:
+// the view where the separation is read off directly, and where ablation
+// visibly closes the gap to nothing.
+document.getElementById('align').addEventListener('click', function () {
+  const y0 = view.yaw, p0 = view.pitch, t0 = performance.now();
+  (function frame(now) {
+    const k = Math.min(1, (now - t0) / 420);
+    const e = 1 - Math.pow(1 - k, 3);
+    view.yaw = y0 * (1 - e); view.pitch = p0 * (1 - e);
+    draw();
+    if (k < 1) requestAnimationFrame(frame);
+  })(t0);
 });
-scene.addEventListener("pointermove", e => {
-  if (!dragging) return;
-  state.yaw   += (e.clientX - lastX) * 0.0072;
-  state.pitch += (e.clientY - lastY) * 0.0072;
-  state.pitch = Math.max(-1.45, Math.min(1.45, state.pitch));
-  lastX = e.clientX; lastY = e.clientY;
+
+const a2 = document.getElementById('alpha2');
+a2.addEventListener('input', function () {
+  cloud.alpha = +a2.value / 100;
+  document.getElementById('alphaNum2').innerHTML = '&alpha; = ' + cloud.alpha.toFixed(2);
+  draw();
 });
-for (const ev of ["pointerup", "pointercancel"]) {
-  scene.addEventListener(ev, e => {
-    dragging = false;
-    scene.classList.remove("dragging");
-    try { scene.releasePointerCapture(e.pointerId); } catch (_) {}
+addEventListener('resize', function () { if (step === 3) draw(); });
+
+// ---------------------------------------------------------------------------
+// Act 1 — the live model, both conditions side by side.
+// ---------------------------------------------------------------------------
+function readStream(prompt, alpha, el, tag) {
+  el.textContent = ''; tag.textContent = ''; tag.className = 'pill';
+  return fetch('/generate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: prompt, alpha: alpha, max_new_tokens: 64 })
+  }).then(function (res) {
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    return (function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return;
+        buf += dec.decode(r.value, { stream: true });
+        const parts = buf.split('\n\n'); buf = parts.pop();
+        for (const part of parts) {
+          if (part.indexOf('data: ') !== 0) continue;
+          const ev = JSON.parse(part.slice(6));
+          if (ev.type === 'token') {
+            el.textContent += ev.token;
+            // Anchor on the baseline run's first event only. Index 0 is the
+            // prefill pass, so its projection is the last PROMPT token — the
+            // same quantity extract.py cached for every point in the cloud.
+            // Later tokens are the generation drifting, and an intervened run's
+            // reading is post-hoc, so neither belongs there.
+            if (alpha === 0 && ev.index === 0 && ev.perp) {
+              cloud.anchor = [ev.projection, ev.perp[0], ev.perp[1]];
+            }
+          } else if (ev.type === 'done') {
+            tag.textContent = ev.refusal_heuristic ? 'refused' : 'complied';
+            tag.className = 'pill ' + (ev.refusal_heuristic ? 'refuse' : 'comply');
+          } else if (ev.type === 'error') {
+            el.textContent = ev.message;
+          }
+        }
+        return pump();
+      });
+    })();
   });
 }
-scene.addEventListener("wheel", e => {
-  e.preventDefault();
-  state.dist = Math.max(7, Math.min(34, state.dist + e.deltaY * 0.011));
-}, { passive: false });
 
-const ablateEl = document.getElementById("ablate");
-const injectEl = document.getElementById("inject");
-ablateEl.addEventListener("input", () => { state.ablTarget = Number(ablateEl.value) / 100; });
-injectEl.addEventListener("input", () => { state.injTarget = Number(injectEl.value) / 100; });
+const a1 = document.getElementById('alpha');
+function syncLabel() {
+  const v = +a1.value / 100;
+  document.getElementById('alphaNum').innerHTML = '&alpha; = ' + v.toFixed(2);
+  document.getElementById('ivLabel').textContent =
+    (v < 0 ? 'ABLATED' : v > 0 ? 'INJECTED' : 'BASELINE') + ' α = ' + v.toFixed(2);
+}
+// Deliberately NOT synced to the cloud's slider. Act 1's alpha selects the
+// condition to generate under; Act 2's explores the geometry, and it has to
+// start at 0 or the audience meets the cloud already collapsed and never sees
+// the structure that ablation destroys.
+a1.addEventListener('input', syncLabel);
 
-document.getElementById("resample").addEventListener("click", () => { state.cloud = sampleCloud(); });
-document.getElementById("reset").addEventListener("click", () => {
-  ablateEl.value = "0"; injectEl.value = "0";
-  state.ablTarget = 0; state.injTarget = 0;
+document.getElementById('go').addEventListener('click', function () {
+  const btn = document.getElementById('go');
+  const prompt = document.getElementById('prompt').value;
+  btn.disabled = true; btn.textContent = 'Running…';
+  // Sequential on purpose: the server serialises generations behind a lock,
+  // because the hooks are global state.
+  readStream(prompt, 0, document.getElementById('outBase'), document.getElementById('baseTag'))
+    .then(function () {
+      return readStream(prompt, +a1.value / 100,
+                        document.getElementById('outIv'), document.getElementById('ivTag'));
+    })
+    .catch(function (e) { document.getElementById('outIv').textContent = String(e); })
+    // Scanned after the generations, not alongside: the server serialises both
+    // behind one lock, and asking for the scan first would just delay the text.
+    .then(function () { return fetchScan(prompt); })
+    .then(function () { btn.disabled = false; btn.textContent = 'Run both'; });
 });
 
-// ---------------------------------------------------------------------------
-// Self-test — the Layer 1 definition-of-done checks, runnable with no server,
-// no Node, and no dependencies: open index.html?selftest=1
-//
-// These call the same pure functions the page renders from, so a passing run
-// is evidence about the demo itself and not about a parallel reimplementation.
-// ---------------------------------------------------------------------------
-
-const consoleErrors = [];
-window.addEventListener("error", e => consoleErrors.push(String(e.message)));
-const _err = console.error;
-console.error = function () { consoleErrors.push([].join.call(arguments, " ")); _err.apply(console, arguments); };
-
-function runSelfTest() {
-  const results = [];
-  const check = (name, pass, detail) => results.push({ name, pass, detail });
-
-  // 1. Full ablation drives the gap to ~0, across 5 consecutive resamples.
-  {
-    const gaps = [];
-    for (let i = 0; i < 5; i++) {
-      const c = sampleCloud();
-      gaps.push(computeStats(c.points, c.rhat, 1, 0).gap);
-    }
-    const worst = Math.max.apply(null, gaps.map(Math.abs));
-    check("Gap < 0.05 at 100% ablation, 5 consecutive resamples",
-      worst < 0.05,
-      "max |gap| = " + worst.toExponential(2) + "  [" + gaps.map(g => g.toFixed(4)).join(", ") + "]");
-  }
-
-  // 2. Injection sweep leaves the gap alone while the means both move by α.
-  {
-    const c = sampleCloud();
-    let lo = Infinity, hi = -Infinity, meanShiftErr = 0;
-    const base = computeStats(c.points, c.rhat, 0, 0);
-    for (let a = -4; a <= 4.0001; a += 0.1) {
-      const s = computeStats(c.points, c.rhat, 0, a);
-      lo = Math.min(lo, s.gap); hi = Math.max(hi, s.gap);
-      meanShiftErr = Math.max(meanShiftErr, Math.abs((s.harmless - base.harmless) - a));
-    }
-    check("Gap varies < 0.05 across the full injection sweep",
-      (hi - lo) < 0.05,
-      "gap range = " + (hi - lo).toExponential(2) + " over α ∈ [-4, +4]");
-    check("Both class means shift by exactly α under injection",
-      meanShiftErr < 1e-9,
-      "max |Δmean − α| = " + meanShiftErr.toExponential(2));
-  }
-
-  // 3. r̂ is estimated from the sample, not hardcoded: consecutive draws differ.
-  //
-  // The spec words this as "cosine similarity between consecutive r̂ is
-  // < 0.999". Applied as a hard bound on *every* pair that is not a sound
-  // test: consecutive r̂ are independent estimates of the same direction, so
-  // the pairwise cosine is a random variable (here ~0.996 typical, angle ~5°),
-  // and occasional draws land far closer than that by chance. At this noise
-  // level a max-over-8 bound flakes the majority of the time — it would fail on
-  // correct code and teach us to ignore it. Tested as intended instead: the
-  // typical draw must differ, and no two draws may be identical, which is what
-  // actually separates "estimated from the sample" from "hardcoded".
-  {
-    const sims = [];
-    let prev = sampleCloud().rhat;
-    let identical = 0;
-    for (let i = 0; i < 30; i++) {
-      const cur = sampleCloud().rhat;
-      sims.push(dot(prev, cur));
-      if (cur.x === prev.x && cur.y === prev.y && cur.z === prev.z) identical++;
-      prev = cur;
-    }
-    const sorted = sims.slice().sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    const mean = sims.reduce((x, y) => x + y, 0) / sims.length;
-    const meanAngle = sims.reduce((acc, c) => acc + Math.acos(Math.min(1, c)), 0) / sims.length * 180 / Math.PI;
-    check("r̂ is resampled, not hardcoded (median consecutive cos < 0.999)",
-      median < 0.999 && mean < 0.999 && identical === 0,
-      "median cos = " + median.toFixed(5) + ", mean = " + mean.toFixed(5) +
-      ", mean angle = " + meanAngle.toFixed(2) + "°, identical pairs = " + identical + "/30");
-  }
-
-  // 4. r̂ is a unit vector.
-  {
-    let worst = 0;
-    for (let i = 0; i < 20; i++) {
-      const c = sampleCloud();
-      worst = Math.max(worst, Math.abs(Math.hypot(c.rhat.x, c.rhat.y, c.rhat.z) - 1));
-    }
-    check("‖r̂‖ = 1 to within 1e-5", worst < 1e-5, "max |‖r̂‖ − 1| = " + worst.toExponential(2));
-  }
-
-  // 5. Ablation zeroes every individual projection, not merely the means.
-  {
-    const c = sampleCloud();
-    let worst = 0;
-    for (const p of c.points) worst = Math.max(worst, Math.abs(dot(transform(p, c.rhat, 1, 0), c.rhat)));
-    check("Every point's projection is ~0 at full ablation", worst < 1e-9,
-      "max |h·r̂| = " + worst.toExponential(2) + " over " + c.points.length + " points");
-  }
-
-  // 6. Direction is genuinely informative before ablation: the gap must be a
-  //    large multiple of the noise, or the demo has nothing to show.
-  {
-    const c = sampleCloud();
-    const s = computeStats(c.points, c.rhat, 0, 0);
-    check("Baseline gap is substantial (> 2.0)", s.gap > 2.0, "gap = " + s.gap.toFixed(3));
-  }
-
-  // 7. The page rendered without errors.
-  {
-    check("No console errors during load and render", consoleErrors.length === 0,
-      consoleErrors.length ? consoleErrors.join(" | ") : "clean");
-  }
-
-  // 8. Required honesty text is actually present in the DOM.
-  {
-    const txt = document.body.innerText;
-    const needs = [
-      ["calls itself a toy", /\btoy\b/i.test(txt)],
-      ["names 3 dimensions", /\b3 dimensions\b/i.test(txt)],
-      ["names thousands of dimensions", /thousands/i.test(txt)],
-      ["claims math is identical to real op", /identical operations|character-for-character/i.test(txt)],
-    ];
-    const missing = needs.filter(n => !n[1]).map(n => n[0]);
-    check("Page states it is a toy, names the dimensionality gap, and claims math parity",
-      missing.length === 0, missing.length ? "missing: " + missing.join(", ") : "all present");
-  }
-
-  const passed = results.filter(r => r.pass).length;
-  const box = document.getElementById("selftest");
-  box.classList.remove("hide");
-  box.innerHTML =
-    "<h2>Layer 1 — self test</h2>" +
-    "<div class='detail'>Same pure functions the page renders from. Reload to re-run; remove ?selftest=1 for the demo.</div>" +
-    "<table>" + results.map(r =>
-      "<tr><td class='" + (r.pass ? "ok" : "fail") + "'>" + (r.pass ? "PASS" : "FAIL") + "</td>" +
-      "<td>" + r.name + "<div class='detail'>" + r.detail + "</div></td></tr>").join("") +
-    "</table>" +
-    "<div class='summary " + (passed === results.length ? "ok" : "fail") + "'>" +
-    passed + " / " + results.length + " passed</div>";
-
-  window.__selftest = { passed: passed, total: results.length, results: results };
-  (passed === results.length ? console.log : console.warn)("[selftest] " + passed + "/" + results.length + " passed");
-}
-
-// Expose the model for external drivers (browser automation, console poking).
-window.__demo = { state, sampleCloud, computeStats, transform, dot, normalize, settle, runSelfTest };
-
-requestAnimationFrame(frame);
-
-if (new URLSearchParams(location.search).has("selftest")) {
-  // Let one frame render first, so check 7 covers the render path too.
-  requestAnimationFrame(() => requestAnimationFrame(runSelfTest));
-}
+syncLabel();
+// Scan the default prompt up front so the slide has something on it before the
+// first run. Cheap: one forward pass, no generation.
+fetchScan(document.getElementById('prompt').value);
+show(0);
 
 })();
 </script>

@@ -4,7 +4,7 @@ Bound to 127.0.0.1 and nothing else. Serving the frontend from here rather than
 opening it over file:// is what makes CORS a non-issue: same origin, no
 preflight, no headers to configure.
 
-    python -m backend.app                 # http://127.0.0.1:8000/live.html
+    python -m backend.app                 # http://127.0.0.1:8000
 
 The model is loaded once at startup and held for the process lifetime. Changing
 alpha only changes which hooks are registered for the next generation, so the
@@ -272,7 +272,7 @@ def main() -> None:
     ap.add_argument("--host", default="127.0.0.1", help="local only by default, and it should stay that way")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
-    print(f"serving http://{args.host}:{args.port}/live.html")
+    print(f"serving http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
 
