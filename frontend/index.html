@@ -95,7 +95,7 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
       <span style="flex:1"></span>
       <span class="lbl" id="dirStats"></span>
     </div>
-    <p class="note">Take each prompt's activations at one block, average the forty on each side, subtract, scale to length 1. That is the entire method — everything after this is measuring what that one vector does.</p>
+    <p class="note">That is the entire method. Everything after this measures what that one vector does.</p>
   </section>
 
   <section class="act" id="act1">
@@ -119,7 +119,7 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
       <output id="alphaNum">&alpha; = -1.00</output>
       <button id="go">Run both</button>
     </div>
-    <p class="note">Refusal is labelled by a crude substring matcher, so read the text rather than the tag. The next slide shows where inside the model that decision gets made.</p>
+    <p class="note">Refusal is labelled by a crude substring matcher — read the text, not the tag.</p>
   </section>
 
   <section class="act" id="actscan">
@@ -135,7 +135,7 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
         <div class="stage" style="padding:12px"><canvas id="scanB"></canvas></div>
       </div>
     </div>
-    <p class="note" id="scanNote">Block 0 at the bottom, 35 at the top. The boxed column is the last input token — the one whose residual stream becomes the first word the model says, and the position the direction was extracted from. Cosine rather than a raw dot product, because residual norms grow with depth and the raw number would rise for a trivial reason. Fixed colour scale, shared by both panels.</p>
+    <p class="note" id="scanNote">Boxed column: the last input token — where the next word gets decided, and where r&#770; was extracted. Cosine, not a raw dot product, since residual norms grow with depth. Fixed scale, shared by both panels.</p>
   </section>
 
   <section class="act" id="act2">
@@ -149,7 +149,7 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
       <output id="alphaNum2">&alpha; = 0.00</output>
       <button id="align" class="ghost">Line up with r&#770;</button>
     </div>
-    <p class="note" id="note2">Drag to rotate, scroll to zoom. One axis is r&#770;; the other two are the strongest directions left once r&#770; is removed. The classes split along r&#770; by 3.94 SD and along the other two by 0.00 — that is what "a single direction" means.</p>
+    <p class="note" id="note2">Drag to rotate, scroll to zoom. One axis is r&#770;; the other two are the strongest directions left once it is removed. The classes split 3.94 SD along r&#770;, and 0.00 along both others.</p>
   </section>
 </main>
 
