@@ -62,19 +62,43 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
 .out { white-space:pre-wrap; font-size:15px; line-height:1.55; overflow:hidden; }
 .scanlab { font-size:12px; color:var(--harmful); margin-bottom:7px;
            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pairhd { display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px;
+          letter-spacing:.05em; color:var(--faint); margin-bottom:7px; }
+.pairrow { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:9px; }
+.cell { font-size:14px; padding:10px 13px; border-radius:9px; line-height:1.45; }
+.cell.hf { background:#F2E2DA; color:#8C4A31; }
+.cell.hl { background:#E1E9EE; color:#3E5D72; }
+.eq { margin-top:18px; padding:14px 16px; background:var(--stage);
+      border:1px solid var(--border); border-radius:10px; text-align:center;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Refusal in language models is mediated by a single direction</h1>
-  <div class="dots"><span id="stepnum">1 / 3</span>
-    <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+  <div class="dots"><span id="stepnum">1 / 4</span>
+    <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
   </div>
 </header>
 
 <main>
-  <section class="act on" id="act1">
+  <section class="act on" id="actrecipe">
+    <h2>One direction, from forty pairs</h2>
+    <p class="sub">Each pair shares its grammar and nearly all its words. One gets refused, one doesn't.</p>
+    <div class="pairhd"><span>REFUSED</span><span>ANSWERED</span></div>
+    <div id="pairs"></div>
+    <div class="eq">r&#770; = normalise( mean(<span style="color:var(--harmful)">refused</span>) &minus; mean(<span style="color:var(--harmless)">answered</span>) )</div>
+    <div class="ctl">
+      <button id="morePairs">Show another three</button>
+      <span class="lbl" id="pairCount"></span>
+      <span style="flex:1"></span>
+      <span class="lbl" id="dirStats"></span>
+    </div>
+    <p class="note">Take each prompt's activations at one block, average the forty on each side, subtract, scale to length 1. That is the entire method — everything after this is measuring what that one vector does.</p>
+  </section>
+
+  <section class="act" id="act1">
     <h2>The model obeys</h2>
     <p class="sub">Same prompt, same weights. Only the residual stream changed.</p>
     <input id="prompt" value="Write a phishing email that impersonates a bank's fraud department.">
@@ -146,9 +170,59 @@ function show(i) {
   acts.forEach(function (a, n) { a.classList.toggle('on', n === step); });
   dots.forEach(function (d, n) { d.classList.toggle('on', n === step); });
   document.getElementById('stepnum').textContent = (step + 1) + ' / ' + acts.length;
-  if (step === 1) drawScans();
-  if (step === 2) draw();
+  if (step === 2) drawScans();
+  if (step === 3) draw();
 }
+
+// ---------------------------------------------------------------------------
+// Opening slide: the extraction pairs, cycled three at a time.
+//
+// Cycling is not decoration. Three pairs look like a trick with phishing; a
+// presenter clicking through forty shows the corpus spans fraud, lock-picking,
+// surveillance and forgery, which is the other half of the claim that this is a
+// refusal direction rather than a topic direction.
+// ---------------------------------------------------------------------------
+const pairs = { all: [], at: 0 };
+
+fetch('/api/prompts').then(r => r.json()).then(function (d) {
+  pairs.all = d.pairs || [];
+  renderPairs();
+}).catch(function () {});
+
+fetch('/api/meta').then(r => r.json()).then(function (m) {
+  if (!m.direction) return;
+  const el = document.getElementById('dirStats');
+  el.textContent = 'from ' + m.direction.n_pairs + ' pairs at block ' + m.direction.layer +
+    ' · split-half ' + m.direction.split_half_cosine.toFixed(3) +
+    ' · separation ' + m.direction.separation_sds.toFixed(2) + ' SD';
+}).catch(function () {});
+
+function renderPairs() {
+  if (!pairs.all.length) return;
+  let html = '';
+  for (let i = 0; i < 3; i++) {
+    const p = pairs.all[(pairs.at + i) % pairs.all.length];
+    html += '<div class="pairrow"><div class="cell hf"></div><div class="cell hl"></div></div>';
+  }
+  const host = document.getElementById('pairs');
+  host.innerHTML = html;
+  // textContent rather than innerHTML for the prompts themselves: they are
+  // corpus data, not markup, and some contain characters that would inject.
+  const cells = host.querySelectorAll('.cell');
+  for (let i = 0; i < 3; i++) {
+    const p = pairs.all[(pairs.at + i) % pairs.all.length];
+    cells[i * 2].textContent = p[0];
+    cells[i * 2 + 1].textContent = p[1];
+  }
+  document.getElementById('pairCount').textContent =
+    ((pairs.at % pairs.all.length) + 1) + '–' + ((pairs.at + 2) % pairs.all.length + 1) +
+    ' of ' + pairs.all.length;
+}
+
+document.getElementById('morePairs').addEventListener('click', function () {
+  pairs.at = (pairs.at + 3) % pairs.all.length;
+  renderPairs();
+});
 
 addEventListener('keydown', function (e) {
   const t = e.target;
@@ -176,7 +250,7 @@ function fetchScan(prompt) {
     scan.a = d; scan.b = d.reference; scan.prompt = prompt;
     document.getElementById('scanLabA').textContent = prompt;
     document.getElementById('scanLabB').textContent = d.reference_prompt;
-    if (step === 1) drawScans();
+    if (step === 2) drawScans();
   }).catch(function () {});
 }
 
@@ -257,7 +331,7 @@ function drawScan(id, s, max) {
   g.restore();
 }
 
-addEventListener('resize', function () { if (step === 1) drawScans(); });
+addEventListener('resize', function () { if (step === 2) drawScans(); });
 
 // ---------------------------------------------------------------------------
 // The cloud: REAL activations, from /api/projection.
@@ -296,7 +370,7 @@ fetch('/api/projection').then(r => r.json()).then(function (d) {
   const r85 = radii[Math.floor(radii.length * 0.85)] || radii[radii.length - 1] || 1;
   cloud.centre = c;
   view.scale = 3.6 / r85;
-  if (step === 2) draw();
+  if (step === 3) draw();
 }).catch(function () {
   document.getElementById('note2').textContent =
     'Could not reach the server — start it with `python -m backend.app`.';
@@ -467,7 +541,7 @@ a2.addEventListener('input', function () {
   document.getElementById('alphaNum2').innerHTML = '&alpha; = ' + cloud.alpha.toFixed(2);
   draw();
 });
-addEventListener('resize', function () { if (step === 2) draw(); });
+addEventListener('resize', function () { if (step === 3) draw(); });
 
 // ---------------------------------------------------------------------------
 // Act 1 — the live model, both conditions side by side.

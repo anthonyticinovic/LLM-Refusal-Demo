@@ -137,6 +137,15 @@ def prompts():
     for key, fname in (("harmful", "heldout_harmful.json"), ("harmless", "heldout_harmless.json")):
         with open(Path(__file__).parent / "prompts" / fname) as f:
             out[key] = json.load(f)["prompts"][:8]
+
+    # The extraction pairs, for the demo's opening slide. Sent whole rather than
+    # truncated: the point that slide makes is breadth, and eight of forty would
+    # undersell it.
+    pairs = {}
+    for key, fname in (("h", "harmful.json"), ("b", "harmless.json")):
+        with open(Path(__file__).parent / "prompts" / fname) as f:
+            pairs[key] = json.load(f)["prompts"]
+    out["pairs"] = [[a, b] for a, b in zip(pairs["h"], pairs["b"])]
     return out
 
 

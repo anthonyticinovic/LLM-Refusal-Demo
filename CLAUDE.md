@@ -199,9 +199,24 @@ only the causal check needs generation.
 
 ## The presenter demo (`frontend/demo.html`)
 
-Two acts, keyboard-stepped, on the paper palette: **the model obeys** (live
-paired generation, refusal vs compliance) then **why** (the real activations in
-3D, rotatable). Design and build notes in `docs/superpowers/`.
+Four acts, keyboard-stepped, on the paper palette: **the recipe** (real extraction
+pairs, cycled, plus the difference-of-means formula), **the model obeys** (live
+paired generation), **where the decision forms** (`/api/scan`: alignment with r̂
+across every block and token, your prompt beside a fixed benign reference), then
+**why** (the real activations in 3D, rotatable). Design and build notes in
+`docs/superpowers/`.
+
+The recipe leads deliberately. Without it the audience meets an ablate/inject
+slider with no idea what it removes, and the flip reads as a jailbreak trick
+rather than as one direction out of 2048 obtained by subtracting two averages —
+which is what makes it striking. It also carries the extraction quality numbers
+(split-half, separation), which appear nowhere else in the demo.
+
+The scan slide's colour scale is a **fixed** constant, not fitted to the data. An
+adaptive scale repainted the benign reference for every prompt, so two runs could
+not be compared and an unremarkable prompt looked as hot as a refused one. The
+opacity curve has a gamma for legibility, so cells are not linear in cosine —
+fine for comparison, not for reading values off.
 
 **Everything in it is real.** An earlier draft opened with Layer 1's synthetic
 cloud, which read as disjointed the moment the next slide showed real data — and

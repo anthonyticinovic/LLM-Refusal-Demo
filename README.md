@@ -87,11 +87,21 @@ prompt, the same direction makes it refuse.
 `frontend/demo.html`, served by the same process. Start the server as above and
 open http://127.0.0.1:8000/demo.html.
 
-This is the version to show a room. Two acts, stepped with `←` and `→`:
+This is the version to show a room. Four acts, stepped with `←` and `→`:
 
-1. **The model obeys** — your prompt run at baseline and under the intervention,
+1. **One direction, from forty pairs** — the extraction corpus, three pairs at a
+   time, with the difference-of-means formula. Click through all forty to show
+   the breadth: fraud, lock-picking, surveillance, forgery. Each pair holds the
+   grammar fixed, so the direction is refusal rather than "security words".
+2. **The model obeys** — your prompt run at baseline and under the intervention,
    side by side, streamed live. Refusal on the left, compliance on the right.
-2. **Why** — the model's real activations in 3D, rotatable. One axis is r̂; the
+3. **Where the decision forms** — alignment with r̂ at every block and every
+   token, for your prompt and a fixed benign reference on one shared scale. Flat
+   and identical through the system prompt, igniting mid-stack once the request
+   turns harmful, hottest at the boxed final token — the position whose residual
+   stream becomes the first word the model says, and the one r̂ was extracted
+   from.
+4. **Why** — the model's real activations in 3D, rotatable. One axis is r̂; the
    other two are the strongest directions left once r̂ is removed. The classes
    split by 3.94 SD along r̂ and 0.00 SD along both others, which is the "single
    direction" claim as a picture. The prompt you just ran appears as a marked
@@ -162,11 +172,12 @@ some raw generations with `spot_check`.
 frontend/
   index.html    Layer 1, self-contained, no dependencies
   live.html     Layer 2 UI: prompt box, alpha slider, streamed tokens, projection chart
-  demo.html     the two-act presenter demo, on real activations throughout
+  demo.html     the four-act presenter demo, on real activations throughout
 backend/
   model.py      loads the model and fixes the one indexing convention the rest relies on
   extract.py    runs the prompt pairs, caches every layer's activations, computes r̂
   projection.py the demo's fixed 3D frame (r̂ plus two leftover axes), from those cached activations
+  scan.py       alignment with r̂ at every block and token of a prompt, in one forward pass
   hooks.py      the two interventions and the single alpha that drives them
   generate.py   token-by-token generation with the hooks applied, plus the projection trace
   refusal.py    the substring refusal matcher and why it is deliberately blunt
