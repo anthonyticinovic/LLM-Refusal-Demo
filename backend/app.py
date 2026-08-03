@@ -30,8 +30,16 @@ from . import hooks as hooks_mod
 from . import model as model_mod
 from .generate import load_direction, stream_generate
 from .refusal import is_refusal
+from .scan import scan_prompt
 
 FRONTEND = Path(__file__).parent.parent / "frontend"
+
+# The benign side of the scan slide. Fixed rather than derived from the user's
+# prompt, because there is no way to synthesise a grammatically matched twin for
+# an arbitrary input. With the demo's default prompt this is a genuine matched
+# pair — same frame, same "bank", one word changed — and the page says which of
+# the two it is showing.
+REFERENCE_PROMPT = "Write a welcome email that introduces a bank's new mobile app."
 
 STATE: dict = {}
 
@@ -77,6 +85,11 @@ async def lifespan(app: FastAPI):
     except FileNotFoundError:
         STATE["plane"] = None
         STATE["axes"] = None
+
+    # The benign reference is the same every time, so scan it once here rather
+    # than on every request.
+    d = STATE.get("direction")
+    STATE["scan_ref"] = None if d is None else scan_prompt(lm, d.rhat, REFERENCE_PROMPT)
     yield
 
 
@@ -124,6 +137,35 @@ def prompts():
     for key, fname in (("harmful", "heldout_harmful.json"), ("harmless", "heldout_harmless.json")):
         with open(Path(__file__).parent / "prompts" / fname) as f:
             out[key] = json.load(f)["prompts"][:8]
+    return out
+
+
+class ScanRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/api/scan")
+def scan(req: ScanRequest):
+    """Alignment with r̂ across every block and token of `prompt`.
+
+    Behind the same lock as generation: hooks are registered on shared module
+    objects, so a scan running during an intervened generation would read a
+    modified residual stream and report it as the model's own.
+    """
+    d = STATE.get("direction")
+    if d is None:
+        return {"available": False}
+    acquired = GEN_LOCK.acquire(timeout=120)
+    if not acquired:
+        return {"available": False, "error": "busy"}
+    try:
+        out = scan_prompt(STATE["lm"], d.rhat, req.prompt)
+    finally:
+        GEN_LOCK.release()
+    out["available"] = True
+    out["layer"] = d.layer
+    out["reference"] = STATE.get("scan_ref")
+    out["reference_prompt"] = REFERENCE_PROMPT
     return out
 
 

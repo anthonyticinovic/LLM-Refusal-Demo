@@ -60,14 +60,16 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
 .pane .hd { display:flex; justify-content:space-between; align-items:center;
             color:var(--faint); font-size:11px; letter-spacing:.06em; margin-bottom:9px; }
 .out { white-space:pre-wrap; font-size:15px; line-height:1.55; overflow:hidden; }
+.scanlab { font-size:12px; color:var(--harmful); margin-bottom:7px;
+           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Refusal in language models is mediated by a single direction</h1>
-  <div class="dots"><span id="stepnum">1 / 2</span>
-    <span class="dot on"></span><span class="dot"></span>
+  <div class="dots"><span id="stepnum">1 / 3</span>
+    <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
   </div>
 </header>
 
@@ -94,6 +96,22 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
       <button id="go">Run both</button>
     </div>
     <p class="note">Refusal is labelled by a crude substring matcher, so read the text rather than the tag. Next slide shows where this prompt sits, and what the slider did to it.</p>
+  </section>
+
+  <section class="act" id="actscan">
+    <h2>Where the decision forms</h2>
+    <p class="sub">Alignment with r̂ at every block and every token. Same measurement, two prompts.</p>
+    <div style="display:flex;gap:18px">
+      <div style="flex:1">
+        <div class="scanlab" id="scanLabA">your prompt</div>
+        <div class="stage" style="padding:12px"><canvas id="scanA"></canvas></div>
+      </div>
+      <div style="flex:1">
+        <div class="scanlab" id="scanLabB" style="color:var(--harmless)">fixed benign reference</div>
+        <div class="stage" style="padding:12px"><canvas id="scanB"></canvas></div>
+      </div>
+    </div>
+    <p class="note" id="scanNote">Block 0 at the bottom, 35 at the top. The boxed column is the last input token — the one whose residual stream becomes the first word the model says, and the position the direction was extracted from. Cosine rather than a raw dot product, because residual norms grow with depth and the raw number would rise for a trivial reason. Fixed colour scale, shared by both panels.</p>
   </section>
 
   <section class="act" id="act2">
@@ -128,7 +146,8 @@ function show(i) {
   acts.forEach(function (a, n) { a.classList.toggle('on', n === step); });
   dots.forEach(function (d, n) { d.classList.toggle('on', n === step); });
   document.getElementById('stepnum').textContent = (step + 1) + ' / ' + acts.length;
-  if (step === 1) draw();
+  if (step === 1) drawScans();
+  if (step === 2) draw();
 }
 
 addEventListener('keydown', function (e) {
@@ -137,6 +156,108 @@ addEventListener('keydown', function (e) {
   if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(step + 1); }
   if (e.key === 'ArrowLeft') { e.preventDefault(); show(step - 1); }
 });
+
+// ---------------------------------------------------------------------------
+// The scan: alignment with r̂ across blocks and tokens, from /api/scan.
+//
+// Both panels share one colour scale, computed across both grids — separate
+// scales would make a weak signal look identical to a strong one, which is the
+// whole comparison the slide rests on.
+// ---------------------------------------------------------------------------
+const scan = { a: null, b: null, prompt: null };
+
+function fetchScan(prompt) {
+  document.getElementById('scanNote').dataset.state = 'loading';
+  return fetch('/api/scan', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: prompt })
+  }).then(r => r.json()).then(function (d) {
+    if (!d.available) return;
+    scan.a = d; scan.b = d.reference; scan.prompt = prompt;
+    document.getElementById('scanLabA').textContent = prompt;
+    document.getElementById('scanLabB').textContent = d.reference_prompt;
+    if (step === 1) drawScans();
+  }).catch(function () {});
+}
+
+// Fixed, not adapted to the data. A scale derived from whichever prompt was
+// last run would repaint the benign reference every time, so two prompts could
+// not be compared with each other and an unremarkable prompt would look as hot
+// as a refused one. Values above this clamp. Retune if the model or extraction
+// layer changes — observed peak on Qwen2.5-3B layer 21 is about 0.29.
+const SCAN_MAX = 0.30;
+
+function drawScans() {
+  if (!scan.a || !scan.b) return;
+  drawScan('scanA', scan.a, SCAN_MAX);
+  drawScan('scanB', scan.b, SCAN_MAX);
+}
+
+function drawScan(id, s, max) {
+  const cv = document.getElementById(id);
+  const dpr = devicePixelRatio || 1;
+  const w = cv.parentElement.clientWidth - 24;
+  const h = Math.max(240, Math.min(360, innerHeight - 400));
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  const L = 30, R = 6, T = 6, B = 74;          // margins; B holds the token labels
+  const n = s.tokens.length, rows = s.n_layers;
+  const cw = (w - L - R) / n, ch = (h - T - B) / rows;
+
+  for (let l = 0; l < rows; l++) {
+    // Block 0 at the bottom, so the picture reads bottom-up like the stack.
+    const y = T + (rows - 1 - l) * ch;
+    for (let t = 0; t < n; t++) {
+      // Negatives clamp to blank: they sit within noise of zero here, and a
+      // second colour for them would imply a meaning they do not carry.
+      // The exponent is contrast only — it lightens the broad mid-range so the
+      // hot region reads from the back of a room. Both panels get the same
+      // curve and the same max, so the comparison is untouched.
+      const a = Math.pow(Math.max(0, Math.min(1, s.grid[l][t] / max)), 1.7);
+      g.fillStyle = 'rgba(198,126,96,' + (0.02 + a * 0.98).toFixed(3) + ')';
+      g.fillRect(L + t * cw, y, Math.max(1, cw - 0.5), Math.max(1, ch - 0.5));
+    }
+  }
+
+  // The last position: the final input token, whose residual stream becomes the
+  // logits for the first word the model says. It is the moment before it
+  // commits, and the reason extraction reads here and nowhere else.
+  g.strokeStyle = '#2A2C2C'; g.lineWidth = 1;
+  g.strokeRect(L + (n - 1) * cw - 0.5, T - 0.5, Math.max(2, cw), rows * ch + 1);
+
+  g.fillStyle = '#9A9B92';
+  g.font = '10px ui-sans-serif,system-ui,sans-serif';
+  for (let l = 0; l < rows; l += 6) {
+    const y = T + (rows - 1 - l) * ch + ch;
+    g.fillText(String(l), 6, y);
+  }
+  g.fillText(String(rows - 1), 6, T + 8);
+
+  // Rotated so long tokens are readable; thinned when the columns get tight.
+  const everyN = cw < 9 ? Math.ceil(9 / cw) : 1;
+  g.save();
+  g.font = '10px ui-sans-serif,system-ui,sans-serif';
+  for (let t = 0; t < n; t++) {
+    if (t % everyN) continue;
+    let label = s.tokens[t].replace(/\n/g, '\\n');
+    if (label.length > 12) label = label.slice(0, 11) + '…';
+    if (!label.trim()) continue;
+    g.save();
+    g.translate(L + t * cw + cw / 2, h - B + 8);
+    g.rotate(-Math.PI / 4);
+    g.fillStyle = t === n - 1 ? '#2A2C2C' : '#87887F';
+    g.textAlign = 'right';
+    g.fillText(label, 0, 0);
+    g.restore();
+  }
+  g.restore();
+}
+
+addEventListener('resize', function () { if (step === 1) drawScans(); });
 
 // ---------------------------------------------------------------------------
 // The cloud: REAL activations, from /api/projection.
@@ -175,7 +296,7 @@ fetch('/api/projection').then(r => r.json()).then(function (d) {
   const r85 = radii[Math.floor(radii.length * 0.85)] || radii[radii.length - 1] || 1;
   cloud.centre = c;
   view.scale = 3.6 / r85;
-  if (step === 1) draw();
+  if (step === 2) draw();
 }).catch(function () {
   document.getElementById('note2').textContent =
     'Could not reach the server — start it with `python -m backend.app`.';
@@ -346,7 +467,7 @@ a2.addEventListener('input', function () {
   document.getElementById('alphaNum2').innerHTML = '&alpha; = ' + cloud.alpha.toFixed(2);
   draw();
 });
-addEventListener('resize', function () { if (step === 1) draw(); });
+addEventListener('resize', function () { if (step === 2) draw(); });
 
 // ---------------------------------------------------------------------------
 // Act 1 — the live model, both conditions side by side.
@@ -415,10 +536,16 @@ document.getElementById('go').addEventListener('click', function () {
                         document.getElementById('outIv'), document.getElementById('ivTag'));
     })
     .catch(function (e) { document.getElementById('outIv').textContent = String(e); })
+    // Scanned after the generations, not alongside: the server serialises both
+    // behind one lock, and asking for the scan first would just delay the text.
+    .then(function () { return fetchScan(prompt); })
     .then(function () { btn.disabled = false; btn.textContent = 'Run both'; });
 });
 
 syncLabel();
+// Scan the default prompt up front so the slide has something on it before the
+// first run. Cheap: one forward pass, no generation.
+fetchScan(document.getElementById('prompt').value);
 show(0);
 
 })();
