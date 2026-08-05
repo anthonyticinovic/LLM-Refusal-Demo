@@ -284,15 +284,21 @@ function drawScan(id, s, max) {
   const cv = document.getElementById(id);
   const dpr = devicePixelRatio || 1;
   const w = cv.parentElement.clientWidth - 24;
-  const h = Math.max(240, Math.min(360, innerHeight - 400));
+  const h = Math.max(320, Math.min(500, innerHeight - 300));
   cv.width = w * dpr; cv.height = h * dpr;
   cv.style.height = h + 'px';
   const g = cv.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
 
+  // Drop the chat template's system preamble. It is identical in both panels
+  // and in every prompt, so it spent half the width saying nothing — and the
+  // cells that remain get correspondingly wider.
+  const from = s.user_start || 0;
+  const tokens = s.tokens.slice(from);
+
   const L = 30, R = 6, T = 6, B = 74;          // margins; B holds the token labels
-  const n = s.tokens.length, rows = s.n_layers;
+  const n = tokens.length, rows = s.n_layers;
   const cw = (w - L - R) / n, ch = (h - T - B) / rows;
 
   for (let l = 0; l < rows; l++) {
@@ -304,7 +310,7 @@ function drawScan(id, s, max) {
       // The exponent is contrast only — it lightens the broad mid-range so the
       // hot region reads from the back of a room. Both panels get the same
       // curve and the same max, so the comparison is untouched.
-      const a = Math.pow(Math.max(0, Math.min(1, s.grid[l][t] / max)), 1.7);
+      const a = Math.pow(Math.max(0, Math.min(1, s.grid[l][t + from] / max)), 1.7);
       g.fillStyle = 'rgba(198,126,96,' + (0.02 + a * 0.98).toFixed(3) + ')';
       g.fillRect(L + t * cw, y, Math.max(1, cw - 0.5), Math.max(1, ch - 0.5));
     }
@@ -330,7 +336,7 @@ function drawScan(id, s, max) {
   g.font = '10px ui-sans-serif,system-ui,sans-serif';
   for (let t = 0; t < n; t++) {
     if (t % everyN) continue;
-    let label = s.tokens[t].replace(/\n/g, '\\n');
+    let label = tokens[t].replace(/\n/g, '\\n');
     if (label.length > 12) label = label.slice(0, 11) + '…';
     if (!label.trim()) continue;
     g.save();

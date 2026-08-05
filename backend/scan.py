@@ -48,6 +48,23 @@ def scan_prompt(lm: model_mod.LoadedModel, rhat: torch.Tensor, prompt: str) -> d
     r = rhat.float()
     r = r / r.norm()
 
+    # Where the user's own words start, so the display can drop the chat
+    # template's system preamble. Found by character offset rather than by
+    # matching template tokens, which differ between model families. Reported
+    # rather than applied: the grid stays complete, and the page decides what to
+    # show.
+    text = lm.format_prompt(prompt)
+    user_start = 0
+    try:
+        enc = lm.tokenizer(text, return_offsets_mapping=True)
+        at = text.rfind(prompt)
+        if at >= 0:
+            user_start = next(
+                (i for i, (a, b) in enumerate(enc["offset_mapping"]) if b > at), 0
+            )
+    except (TypeError, KeyError, NotImplementedError):
+        pass  # slow tokeniser without offsets — show everything
+
     grid: list = [None] * lm.n_layers
     handles = []
 
@@ -71,4 +88,5 @@ def scan_prompt(lm: model_mod.LoadedModel, rhat: torch.Tensor, prompt: str) -> d
         "tokens": [lm.tokenizer.decode([int(i)]) for i in ids[0]],
         "grid": grid,
         "n_layers": lm.n_layers,
+        "user_start": user_start,
     }
