@@ -314,12 +314,22 @@ it makes *benign* prompts refuse.
 Noticed while building. The decision is to stop at the definition of done, so
 none of this gets built without the user asking. Roughly by value.
 
+**A follow-on research direction now has its own plan: `docs/research-plan.md`.**
+Predicting abliteration resistance from internal geometry. Separate from the
+demo, inference-only, not started. Read it before proposing research extensions —
+it also records which adjacent directions are already taken, so you don't
+re-derive a literature sweep.
+
 **The obvious hole a skeptic will poke.** Nothing here measures whether ablation
 *damages the model generally*. "You didn't remove refusal, you lobotomised it"
 is the first serious objection this demo will meet, and right now the answer is
 a shrug. A short perplexity comparison on neutral text, or a handful of
 capability probes (arithmetic, a summarisation, a code snippet) at α=0 vs α=−1,
-would close it cheaply. Highest-value single addition by a distance.
+would close it cheaply. Still the highest-value addition *to the demo* — but note
+it is no longer an open question in the literature: *Abliteration Is Not a
+Scalpel* (arXiv 2607.17427) measures the off-target effects and concludes an
+abliterated model is "a measurably different decision-maker, not the base model
+minus refusals". So building it is reproduction for credibility, not discovery.
 
 **Blog / write-up.** The cloud needs no model at runtime — it is 80 points × 3
 coordinates, and the scan is ~3k floats. Baking those into a copy of

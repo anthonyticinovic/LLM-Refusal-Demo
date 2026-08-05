@@ -491,7 +491,11 @@ function draw() {
   g.clearRect(0, 0, w, h);
 
   // r̂ axis, drawn through the cloud and out the far side.
-  const half = 4.2 / activeScale();
+  // Fixed length in ACTIVATION units, deliberately not in screen units. When
+  // injection zooms the scene out, the axis has to shrink with it; a ruler that
+  // stays the same length on screen makes the cloud look like it is contracting,
+  // when injection is a pure translation that leaves every distance unchanged.
+  const half = 4.2 / view.scale;
   const axisA = project(toViewRaw([cloud.centre[0] - half, cloud.centre[1], cloud.centre[2]]), w, h);
   const axisB = project(toViewRaw([cloud.centre[0] + half, cloud.centre[1], cloud.centre[2]]), w, h);
 
