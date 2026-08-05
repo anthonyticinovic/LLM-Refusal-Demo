@@ -358,7 +358,7 @@ const cloud = {
   harmful: [], harmless: [], ready: false,
   anchor: null, alpha: 0, injUnit: null
 };
-const view = { yaw: 0.62, pitch: 0.30, dist: 8.2, scale: 1 };
+const view = { yaw: 0.62, pitch: 0.30, zoom: 1, scale: 1 };
 
 fetch('/api/meta').then(r => r.json()).then(function (m) {
   if (m.direction) cloud.injUnit = m.alpha_mapping.inject_max_mult * m.direction.diff_norm;
@@ -382,7 +382,7 @@ fetch('/api/projection').then(r => r.json()).then(function (d) {
   }).sort(function (a, b) { return a - b; });
   const r85 = radii[Math.floor(radii.length * 0.85)] || radii[radii.length - 1] || 1;
   cloud.centre = c;
-  view.scale = 3.6 / r85;
+  view.scale = 2.3 / r85;
 
   // Stated from the data being drawn, not typed in. Hardcoding "2,048" and
   // "3.94 SD" was correct today and silently wrong the moment anyone extracts
@@ -444,38 +444,40 @@ function applyAlpha(p) {
 // Raw coordinates → view space. The r̂ axis uses this directly: it is a fixed
 // direction in the space, so it must NOT move when alpha changes. Only the
 // points move.
-// Injection at α=+1 shifts every point by 2‖d‖ — in view units that is roughly
-// twice the cloud's own radius, so at a fixed scale the points leave the canvas
-// entirely and the slide silently stops showing what it claims. Shrink to fit
-// instead. The cloud getting smaller as you inject is itself the honest reading:
-// the intervention is pushing far outside the range the model normally occupies.
-function activeScale() {
-  if (cloud.alpha <= 0 || !cloud.injUnit) return view.scale;
-  const budget = 3.6;
-  const shift = cloud.alpha * cloud.injUnit * view.scale;
-  return view.scale * budget / (budget + shift);
-}
-
+// Injection is a pure translation, so the drawing has to be one too: the scale
+// never changes and the cloud simply slides along r̂. An earlier version shrank
+// the scene to keep the shifted points on canvas, which made them appear to
+// crowd together — a claim the arithmetic does not make, since every distance
+// between points is untouched.
+//
+// The canvas is much wider than the cloud, so a constant scale fits for most of
+// the slider. Past that it is a PAN, applied to the points and the r̂ axis
+// alike, so nothing moves relative to anything else and every on-screen
+// distance is preserved. The cloud keeps sliding; the axis slides with it.
 function toViewRaw(p) {
-  const s = activeScale();
   return {
-    x: (p[0] - cloud.centre[0]) * s,
-    y: (p[1] - cloud.centre[1]) * s,
-    z: (p[2] - cloud.centre[2]) * s
+    x: (p[0] - cloud.centre[0]) * view.scale,
+    y: (p[1] - cloud.centre[1]) * view.scale,
+    z: (p[2] - cloud.centre[2]) * view.scale
   };
 }
 
 function toView(p) { return toViewRaw(applyAlpha(p)); }
 
+// Orthographic, not perspective. A perspective divide makes on-screen distance
+// depend on depth, so sliding the cloud along r̂ changed its apparent size — it
+// visibly shrank as it moved, which reads as the points crowding together.
+// Injection is a pure translation and leaves every distance between points
+// untouched, so the projection must too. Orthographic guarantees that at any
+// camera angle, not just the aligned one. Depth still reads, through the
+// painter's-order sort and the fade below.
 function project(p, w, h) {
   const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
   const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
   const x1 = p.x * cy - p.z * sy, z1 = p.x * sy + p.z * cy;
   const y2 = p.y * cp - z1 * sp, z2 = p.y * sp + z1 * cp;
-  const zc = z2 + view.dist;
-  if (zc <= 0.15) return null;
-  const f = h * 1.15;
-  return { sx: w / 2 + (f * x1) / zc, sy: h / 2 - (f * y2) / zc, zc: zc };
+  const f = h * 0.135 * view.zoom;
+  return { sx: w / 2 + f * x1, sy: h / 2 - f * y2, zc: z2 };
 }
 
 function draw() {
@@ -489,6 +491,7 @@ function draw() {
   const g = cv.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
+
 
   // r̂ axis, drawn through the cloud and out the far side.
   // Fixed length in ACTIVATION units, deliberately not in screen units. When
@@ -519,9 +522,23 @@ function draw() {
     g.fillText('r̂', axisB.sx + 9, axisB.sy - 6);
   }
 
+  // Depth fade is measured RELATIVE to the cloud's own front and back, not from
+  // an absolute depth. Injection slides every point equally, so their relative
+  // depths are identical before and after — normalising here keeps the shading
+  // identical too. Keyed to absolute depth it drifted as the cloud moved, which
+  // is a second thing changing during what is supposed to be a pure
+  // translation.
+  let zMin = Infinity, zMax = -Infinity;
   items.forEach(function (it) {
     if (!it.p) return;
-    g.globalAlpha = Math.max(0.34, Math.min(0.95, 9.5 / it.p.zc - 0.12));
+    if (it.p.zc < zMin) zMin = it.p.zc;
+    if (it.p.zc > zMax) zMax = it.p.zc;
+  });
+  const zSpan = (zMax - zMin) || 1;
+
+  items.forEach(function (it) {
+    if (!it.p) return;
+    g.globalAlpha = 0.92 - 0.55 * ((it.p.zc - zMin) / zSpan);
     g.fillStyle = it.c;
     g.beginPath(); g.arc(it.p.sx, it.p.sy, 5, 0, 7); g.fill();
   });
@@ -575,7 +592,7 @@ function draw() {
   cv.addEventListener('pointercancel', up);
   cv.addEventListener('wheel', function (e) {
     e.preventDefault();
-    view.dist = Math.max(5, Math.min(20, view.dist + e.deltaY * 0.01));
+    view.zoom = Math.max(0.45, Math.min(2.6, view.zoom * (1 - e.deltaY * 0.0012)));
     draw();
   }, { passive: false });
 })();
