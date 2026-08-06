@@ -68,6 +68,13 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
 .cell { font-size:14px; padding:10px 13px; border-radius:9px; line-height:1.45; }
 .cell.hf { background:#F2E2DA; color:#8C4A31; }
 .cell.hl { background:#E1E9EE; color:#3E5D72; }
+.legendrow { display:flex; align-items:center; gap:14px; margin-top:14px; flex-wrap:wrap; }
+.legendrow .lbl { color:var(--muted); font-size:12px; white-space:nowrap; }
+.legend { display:flex; gap:3px; }
+.legend div { font-size:10px; color:var(--faint); text-align:center;
+              font-variant-numeric:tabular-nums; }
+.legend i { display:block; width:46px; height:15px; border-radius:2px;
+            border:1px solid var(--border); margin-bottom:3px; }
 .eq { margin-top:18px; padding:14px 16px; background:var(--stage);
       border:1px solid var(--border); border-radius:10px; text-align:center;
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:15px; }
@@ -135,7 +142,12 @@ button.ghost { padding:7px 14px; font-size:13px; color:var(--muted); }
         <div class="stage" style="padding:12px"><canvas id="scanB"></canvas></div>
       </div>
     </div>
-    <p class="note" id="scanNote">Boxed column: the last input token — where the next word gets decided, and where r&#770; was extracted. Cosine, not a raw dot product, since residual norms grow with depth. Fixed scale, shared by both panels.</p>
+    <div class="legendrow">
+      <span class="lbl">cosine with r&#770;</span>
+      <div class="legend" id="scanLegend"></div>
+      <span class="lbl" style="color:var(--faint)">0.02 is chance alignment in 2,048 dimensions</span>
+    </div>
+    <p class="note" id="scanNote">Boxed column: the last input token — where the next word gets decided, and where r&#770; was extracted. Cosine, not a raw dot product, since residual norms grow with depth. Fixed scale shared by both panels, and not linear — the steps above are even in cosine, so the curve is the spacing you see.</p>
   </section>
 
   <section class="act" id="act2">
@@ -274,10 +286,32 @@ function fetchScan(prompt) {
 // layer changes — observed peak on Qwen2.5-3B layer 21 is about 0.29.
 const SCAN_MAX = 0.30;
 
+// The single place a cosine becomes ink. The legend is painted from this same
+// function, so the key on screen cannot drift from the cells it describes.
+// Deliberately not linear: the exponent lightens the broad mid-range so the hot
+// region carries to the back of a room. That is why the legend shows swatches
+// at even cosine steps rather than an even ramp — the curve is visible in it.
+function scanInk(cos, max) {
+  const a = Math.pow(Math.max(0, Math.min(1, cos / max)), 1.7);
+  return 'rgba(198,126,96,' + (0.02 + a * 0.98).toFixed(3) + ')';
+}
+
 function drawScans() {
   if (!scan.a || !scan.b) return;
   drawScan('scanA', scan.a, SCAN_MAX);
   drawScan('scanB', scan.b, SCAN_MAX);
+  buildScanLegend();
+}
+
+function buildScanLegend() {
+  const host = document.getElementById('scanLegend');
+  if (!host || host.dataset.built) return;
+  const stops = [0, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+  host.innerHTML = stops.map(function (v, i) {
+    const label = (i === stops.length - 1 ? '≥' : '') + v.toFixed(2);
+    return '<div><i style="background:' + scanInk(v, SCAN_MAX) + '"></i>' + label + '</div>';
+  }).join('');
+  host.dataset.built = '1';
 }
 
 function drawScan(id, s, max) {
@@ -310,8 +344,7 @@ function drawScan(id, s, max) {
       // The exponent is contrast only — it lightens the broad mid-range so the
       // hot region reads from the back of a room. Both panels get the same
       // curve and the same max, so the comparison is untouched.
-      const a = Math.pow(Math.max(0, Math.min(1, s.grid[l][t + from] / max)), 1.7);
-      g.fillStyle = 'rgba(198,126,96,' + (0.02 + a * 0.98).toFixed(3) + ')';
+      g.fillStyle = scanInk(s.grid[l][t + from], max);
       g.fillRect(L + t * cw, y, Math.max(1, cw - 0.5), Math.max(1, ch - 0.5));
     }
   }
